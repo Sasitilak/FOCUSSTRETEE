@@ -159,16 +159,16 @@ export const createBooking = async (
     // Upload screenshot
     let screenshotUrl: string | undefined;
     if (screenshotFile) {
-        const ext = screenshotFile.name.split('.').pop();
+        const ext = screenshotFile.name.split('.').pop() || 'png';
         const path = `bookings/${Date.now()}.${ext}`;
         const { error: uploadError } = await supabase.storage
             .from('payment-screenshots')
             .upload(path, screenshotFile);
 
-        if (!uploadError) {
-            const { data: urlData } = supabase.storage.from('payment-screenshots').getPublicUrl(path);
-            screenshotUrl = urlData.publicUrl;
-        }
+        if (uploadError) throw new Error(`Screenshot upload failed: ${uploadError.message}`);
+
+        const { data: urlData } = supabase.storage.from('payment-screenshots').getPublicUrl(path);
+        screenshotUrl = urlData.publicUrl;
     }
 
     // Insert booking
@@ -214,7 +214,7 @@ export const getBooking = async (id: string): Promise<BookingResponse | null> =>
         await delay(300);
         return mockBookings.find(b => b.id === id) ?? null;
     }
-    const { data, error } = await supabase.from('bookings').select('*, slots(name)').eq('id', id).maybeSingle();
+    const { data, error } = await supabase.from('bookings').select('*, slots(name), floors(floor_number), seats(seat_no)').eq('id', id).maybeSingle();
     if (error) throw new Error(`getBooking: ${error.message}`);
     if (!data) return null;
     return mapBookingRow(data);
@@ -227,7 +227,7 @@ export const getAdminBookings = async (): Promise<BookingResponse[]> => {
 
     const { data, error } = await supabase
         .from('bookings')
-        .select('*, slots(name)')
+        .select('*, slots(name), floors(floor_number), seats(seat_no)')
         .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -275,14 +275,15 @@ export const approveBooking = async (bookingId: string): Promise<BookingResponse
     if (!isSupabaseConfigured()) {
         await delay(500);
         const b = mockBookings.find(b => b.id === bookingId);
-        return { ...b!, status: 'confirmed' };
+        if (!b) throw new Error(`Mock booking not found: ${bookingId}`);
+        return { ...b, status: 'confirmed' };
     }
 
     const { data, error } = await supabase
         .from('bookings')
         .update({ status: 'confirmed' })
         .eq('id', bookingId)
-        .select('*, slots(name)')
+        .select('*, slots(name), floors(floor_number), seats(seat_no)')
         .single();
 
     if (error) throw error;
@@ -293,14 +294,15 @@ export const rejectBooking = async (bookingId: string): Promise<BookingResponse>
     if (!isSupabaseConfigured()) {
         await delay(500);
         const b = mockBookings.find(b => b.id === bookingId);
-        return { ...b!, status: 'rejected' };
+        if (!b) throw new Error(`Mock booking not found: ${bookingId}`);
+        return { ...b, status: 'rejected' };
     }
 
     const { data, error } = await supabase
         .from('bookings')
         .update({ status: 'rejected' })
         .eq('id', bookingId)
-        .select('*, slots(name)')
+        .select('*, slots(name), floors(floor_number), seats(seat_no)')
         .single();
 
     if (error) throw error;
@@ -311,14 +313,15 @@ export const revokeBooking = async (bookingId: string): Promise<BookingResponse>
     if (!isSupabaseConfigured()) {
         await delay(500);
         const b = mockBookings.find(b => b.id === bookingId);
-        return { ...b!, status: 'revoked' as BookingResponse['status'] };
+        if (!b) throw new Error(`Mock booking not found: ${bookingId}`);
+        return { ...b, status: 'revoked' as BookingResponse['status'] };
     }
 
     const { data, error } = await supabase
         .from('bookings')
         .update({ status: 'revoked' })
         .eq('id', bookingId)
-        .select('*, slots(name)')
+        .select('*, slots(name), floors(floor_number), seats(seat_no)')
         .single();
 
     if (error) throw error;
@@ -421,6 +424,8 @@ export const toggleSlotActive = async (slotId: string, isActive: boolean) => {
 
 function mapBookingRow(row: Record<string, unknown>): BookingResponse {
     const slots = row.slots as Record<string, unknown> | null;
+    const floors = row.floors as Record<string, unknown> | null;
+    const seats = row.seats as Record<string, unknown> | null;
     return {
         id: row.id as string,
         slotId: row.slot_id as string,
@@ -428,9 +433,9 @@ function mapBookingRow(row: Record<string, unknown>): BookingResponse {
         slotDate: row.start_date as string,
         location: {
             branch: row.branch_id as 1 | 2,
-            floor: 0, // resolved client-side if needed
-            roomNo: '',
-            seatNo: '',
+            floor: (floors?.floor_number ?? 0) as number,
+            roomNo: `F${(floors?.floor_number ?? 0)}`,
+            seatNo: (seats?.seat_no ?? '') as string,
         },
         customerName: row.customer_name as string,
         customerPhone: row.customer_phone as string,
