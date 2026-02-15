@@ -3,6 +3,7 @@ import {
     Box, Typography, Paper, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, Chip, TextField, MenuItem, Select, FormControl,
     InputLabel, LinearProgress, Button, Snackbar, Alert, useTheme,
+    Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import BlockIcon from '@mui/icons-material/Block';
@@ -22,6 +23,7 @@ const AdminBookings: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [branchFilter, setBranchFilter] = useState<string>('all');
     const [snack, setSnack] = useState('');
+    const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchBookings = async () => {
@@ -38,13 +40,20 @@ const AdminBookings: React.FC = () => {
         fetchBookings();
     }, []);
 
-    const handleRevoke = async (id: string) => {
+    const handleRevoke = (id: string) => {
+        setConfirmRevoke(id);
+    };
+
+    const performRevoke = async () => {
+        if (!confirmRevoke) return;
+        const id = confirmRevoke;
+        setConfirmRevoke(null);
         try {
             const updated = await revokeBooking(id);
             setBookings(prev => prev.map(b => b.id === id ? updated : b));
-            setSnack('Booking revoked');
+            setSnack('Booking revoked successfully');
         } catch {
-            setSnack('Failed to revoke');
+            setSnack('Failed to revoke booking');
         }
     };
 
@@ -53,7 +62,9 @@ const AdminBookings: React.FC = () => {
         if (branchFilter !== 'all' && b.location.branch.toString() !== branchFilter) return false;
         if (search) {
             const q = search.toLowerCase();
-            return b.customerName.toLowerCase().includes(q) || b.customerPhone.includes(q) || b.id.toLowerCase().includes(q);
+            return (b.customerName?.toLowerCase().includes(q) || false) ||
+                (b.customerPhone?.includes(q) || false) ||
+                b.id.toLowerCase().includes(q);
         }
         return true;
     });
@@ -98,7 +109,7 @@ const AdminBookings: React.FC = () => {
                     <Table size="small">
                         <TableHead>
                             <TableRow>
-                                {['ID', 'Customer', 'Phone', 'Date', 'Amount', 'Status', 'Actions'].map(h => (
+                                {['ID', 'Customer', 'Phone', 'Branch', 'Fl/Rm', 'From', 'To', 'Amount', 'Status', 'Actions'].map(h => (
                                     <TableCell key={h} sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase' }}>{h}</TableCell>
                                 ))}
                             </TableRow>
@@ -106,10 +117,13 @@ const AdminBookings: React.FC = () => {
                         <TableBody>
                             {filtered.map(b => (
                                 <TableRow key={b.id} sx={{ '&:hover': { bgcolor: `${theme.palette.primary.main}04` } }}>
-                                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{b.id.slice(0, 8)}</TableCell>
-                                    <TableCell sx={{ fontWeight: 500 }}>{b.customerName}</TableCell>
-                                    <TableCell>{b.customerPhone}</TableCell>
-                                    <TableCell>{b.slotDate}</TableCell>
+                                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', fontWeight: 600 }}>{b.id}</TableCell>
+                                    <TableCell sx={{ fontWeight: 500 }}>{b.customerName || '—'}</TableCell>
+                                    <TableCell>{b.customerPhone || '—'}</TableCell>
+                                    <TableCell sx={{ fontSize: '0.85rem' }}>{b.location.branchName || `Branch ${b.location.branch}`}</TableCell>
+                                    <TableCell sx={{ fontSize: '0.85rem' }}>F{b.location.floor} / {b.location.roomNo}</TableCell>
+                                    <TableCell sx={{ fontSize: '0.85rem' }}>{b.startDate || b.slotDate}</TableCell>
+                                    <TableCell sx={{ fontSize: '0.85rem' }}>{b.endDate || '—'}</TableCell>
                                     <TableCell sx={{ fontWeight: 600 }}>₹{b.amount}</TableCell>
                                     <TableCell>
                                         <Chip label={b.status} color={statusColor[b.status] ?? 'default'} size="small" sx={{ fontWeight: 500, textTransform: 'capitalize' }} />
@@ -139,6 +153,34 @@ const AdminBookings: React.FC = () => {
             <Snackbar open={!!snack} autoHideDuration={2000} onClose={() => setSnack('')}>
                 <Alert severity="info" variant="filled" sx={{ borderRadius: 2 }}>{snack}</Alert>
             </Snackbar>
+
+            {/* Confirmation Dialog */}
+            <Dialog
+                open={!!confirmRevoke}
+                onClose={() => setConfirmRevoke(null)}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Revoke Booking?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Are you sure you want to revoke booking <b>{confirmRevoke}</b>? This will cancel the seat and cannot be easily undone.
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions sx={{ p: 2, gap: 1 }}>
+                    <Button onClick={() => setConfirmRevoke(null)} sx={{ color: 'text.secondary' }}>
+                        Cancel
+                    </Button>
+                    <Button
+                        onClick={performRevoke}
+                        variant="contained"
+                        color="error"
+                        autoFocus
+                        sx={{ borderRadius: 2 }}
+                    >
+                        Yes, Revoke
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

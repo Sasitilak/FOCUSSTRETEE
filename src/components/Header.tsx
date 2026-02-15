@@ -32,18 +32,14 @@ const Header: React.FC = () => {
                     aria-label="StudySpot home"
                     sx={{ display: 'flex', alignItems: 'center', gap: 1.5, cursor: 'pointer', '&:hover': { opacity: 0.8 }, borderRadius: 1, p: 0.5 }}
                 >
-                    <Box sx={{
-                        width: 32, height: 32, borderRadius: '8px',
-                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    <MenuBookIcon sx={{ color: 'primary.main', fontSize: 28 }} />
+                    <Typography variant="h5" fontWeight={800} sx={{
+                        background: `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.secondary.main})`,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        letterSpacing: '-0.5px'
                     }}>
-                        <MenuBookIcon sx={{ color: '#fff', fontSize: 18 }} />
-                    </Box>
-                    <Typography variant="h6" sx={{
-                        fontWeight: 800, fontSize: { xs: '1rem', md: '1.15rem' },
-                        color: 'text.primary',
-                    }}>
-                        StudySpot
+                        Acumen Hive
                     </Typography>
                 </ButtonBase>
 

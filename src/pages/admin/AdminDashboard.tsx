@@ -4,6 +4,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import PeopleIcon from '@mui/icons-material/People';
 import CurrencyRupeeIcon from '@mui/icons-material/CurrencyRupee';
 import PendingActionsIcon from '@mui/icons-material/PendingActions';
+import { useNavigate } from 'react-router-dom';
 import { getDashboardStats, getAdminBookings } from '../../services/api';
 import type { DashboardStats, BookingResponse } from '../../types/booking';
 
@@ -13,6 +14,7 @@ const statusColor: Record<string, 'warning' | 'success' | 'error' | 'default' | 
 
 const AdminDashboard: React.FC = () => {
     const theme = useTheme();
+    const navigate = useNavigate();
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [bookings, setBookings] = useState<BookingResponse[]>([]);
     const [loading, setLoading] = useState(true);
@@ -44,10 +46,10 @@ const AdminDashboard: React.FC = () => {
     );
 
     const statCards = [
-        { label: 'Total Bookings', value: stats.totalBookings, icon: <TrendingUpIcon />, color: '#00ADB5' },
-        { label: 'Active Now', value: stats.activeBookings, icon: <PeopleIcon />, color: '#06b6d4' },
+        { label: 'Total Bookings', value: stats.totalBookings, icon: <TrendingUpIcon />, color: '#00ADB5', path: '/admin/bookings' },
+        { label: 'Active Now', value: stats.activeBookings, icon: <PeopleIcon />, color: '#06b6d4', path: '/admin/bookings' },
         { label: 'Revenue', value: `₹${stats.totalRevenue.toLocaleString()}`, icon: <CurrencyRupeeIcon />, color: '#10b981' },
-        { label: 'Pending Approvals', value: stats.pendingApprovals, icon: <PendingActionsIcon />, color: '#f59e0b' },
+        { label: 'Pending Approvals', value: stats.pendingApprovals, icon: <PendingActionsIcon />, color: '#f59e0b', path: '/admin/approvals' },
     ];
 
     const maxBooking = Math.max(1, ...stats.monthlyBookings.map(m => m.count));
@@ -63,7 +65,16 @@ const AdminDashboard: React.FC = () => {
                     <Grid size={{ xs: 6, md: 3 }} key={i}>
                         <Card
                             className={`animate-fade-in-up stagger-${i + 1}`}
-                            sx={{ transition: 'transform 0.3s', '&:hover': { transform: 'translateY(-3px)' } }}
+                            onClick={() => s.path && navigate(s.path)}
+                            sx={{
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                cursor: s.path ? 'pointer' : 'default',
+                                '&:hover': s.path ? {
+                                    transform: 'translateY(-4px)',
+                                    boxShadow: '0 12px 20px -10px rgba(0,0,0,0.1)',
+                                    borderColor: s.color,
+                                } : {}
+                            }}
                         >
                             <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
@@ -113,6 +124,7 @@ const AdminDashboard: React.FC = () => {
                         {bookings.slice(0, 5).map((b, i) => (
                             <Box key={i} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.5, borderBottom: i < 4 ? `1px solid ${theme.palette.divider}` : 'none' }}>
                                 <Box>
+                                    <Typography variant="body2" fontWeight={700} sx={{ fontFamily: 'monospace', mb: 0.25, fontSize: '0.75rem' }}>{b.id}</Typography>
                                     <Typography variant="body2" fontWeight={500}>{b.customerName}</Typography>
                                     <Typography variant="caption" color="text.secondary">{b.slotDate} · ₹{b.amount}</Typography>
                                 </Box>

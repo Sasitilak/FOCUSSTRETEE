@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Container, Typography, Button, Chip, Paper, Skeleton, useTheme,
+    Box, Container, Typography, Button, Chip, Paper, Skeleton, useTheme, Alert
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -19,13 +19,13 @@ const LocationSelectionPage: React.FC = () => {
     const navigate = useNavigate();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
-    const { selectedSlot, selectedLocation, setSelectedLocation } = useBooking();
+    const { selectedSlot, setSelectedSlot, selectedDate, selectedLocation, setSelectedLocation } = useBooking();
 
     const [branches, setBranches] = useState<Branch[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedBranch, setSelectedBranch] = useState<number | null>(selectedLocation?.branch ?? null);
     const [selectedFloor, setSelectedFloor] = useState<number | null>(selectedLocation?.floor ?? null);
-    const [selectedSeat, setSelectedSeat] = useState<string | null>(selectedLocation?.seatNo ?? null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!selectedSlot) { navigate('/slots'); return; }
@@ -48,17 +48,24 @@ const LocationSelectionPage: React.FC = () => {
     const availCount = allSeats.filter(s => s.available).length;
 
     const handleBranchSelect = (id: number) => {
-        setSelectedBranch(id); setSelectedFloor(null); setSelectedSeat(null); setSelectedLocation(null);
+        setSelectedBranch(id); setSelectedFloor(null); setSelectedLocation(null);
     };
     const handleFloorSelect = (num: number) => {
-        setSelectedFloor(num); setSelectedSeat(null); setSelectedLocation(null);
+        setSelectedFloor(num); setSelectedLocation(null);
     };
     const handleSeatSelect = (seat: Seat) => {
         if (!seat.available || !selectedBranch || !selectedFloor || !curFloor) return;
         const foundRoom = curFloor.rooms.find(r => r.seats.some(s => s.seatNo === seat.seatNo));
         if (!foundRoom) return;
-        setSelectedSeat(seat.seatNo);
         setSelectedLocation({ branch: selectedBranch as 1 | 2, floor: selectedFloor, roomNo: foundRoom.roomNo, seatNo: seat.seatNo });
+
+        // Update price based on selected room
+        if (selectedSlot) {
+            setSelectedSlot({
+                ...selectedSlot,
+                price: (foundRoom.price_daily || 50) * selectedSlot.durationDays
+            });
+        }
     };
 
     if (loading) return (
@@ -177,7 +184,7 @@ const LocationSelectionPage: React.FC = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* ── STEP 3: Seat Grid ── */}
+                    {/* ── STEP 3: Seat Grid / Map ── */}
                     <AnimatePresence mode="wait">
                         {selectedFloor && curFloor && (
                             <motion.div
@@ -193,57 +200,63 @@ const LocationSelectionPage: React.FC = () => {
                                             <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1.5, fontWeight: 600, fontSize: '0.65rem' }}>Step 3</Typography>
                                             <Typography variant="subtitle1" fontWeight={600}>Pick Your Seat</Typography>
                                         </Box>
-                                        <Box sx={{ display: 'flex', gap: 0.75 }}>
+                                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                                             <Chip icon={<ChairIcon sx={{ fontSize: '14px !important' }} />} label={`${availCount} available`} color="success" size="small" variant="outlined" sx={{ height: 24, fontSize: '0.72rem' }} />
-                                            <Chip icon={<ChairIcon sx={{ fontSize: '14px !important' }} />} label={`${allSeats.length - availCount} taken`} size="small" sx={{ opacity: 0.4, height: 24, fontSize: '0.72rem' }} variant="outlined" />
                                         </Box>
                                     </Box>
 
-                                    <Box sx={{
-                                        display: 'grid',
-                                        gridTemplateColumns: { xs: 'repeat(auto-fill, minmax(48px, 1fr))', md: 'repeat(auto-fill, minmax(56px, 1fr))' },
-                                        gap: { xs: 1, md: 1.5 },
-                                        maxHeight: { xs: 260, md: 340 },
-                                        overflowY: 'auto', pr: 0.5,
-                                    }}>
-                                        {allSeats.map((seat, i) => {
-                                            const isSelected = selectedSeat === seat.seatNo;
-                                            return (
-                                                <MotionBox
-                                                    key={seat.id}
-                                                    initial={{ opacity: 0, scale: 0.85 }}
-                                                    animate={{ opacity: 1, scale: 1 }}
-                                                    transition={{ delay: i * 0.012, duration: 0.25 }}
-                                                    onClick={() => handleSeatSelect(seat)}
-                                                    sx={{
-                                                        aspectRatio: '1',
-                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                        borderRadius: 2,
-                                                        cursor: seat.available ? 'pointer' : 'not-allowed',
-                                                        opacity: seat.available ? 1 : 0.25,
-                                                        border: '2px solid',
-                                                        borderColor: isSelected ? 'primary.main' : seat.available ? theme.palette.divider : 'transparent',
-                                                        bgcolor: isSelected
-                                                            ? (isDark ? 'rgba(0,173,181,0.12)' : 'rgba(59,172,182,0.12)')
-                                                            : seat.available ? 'background.paper' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
-                                                        transition: 'all 0.2s ease',
-                                                        '&:hover': seat.available ? {
-                                                            transform: 'scale(1.08)', borderColor: 'primary.main',
-                                                            boxShadow: `0 4px 12px ${theme.palette.primary.main}20`,
-                                                        } : {},
-                                                    }}
-                                                >
-                                                    <Typography
-                                                        variant="caption"
-                                                        fontWeight={isSelected ? 700 : 500}
-                                                        color={isSelected ? 'primary.main' : 'text.primary'}
-                                                        sx={{ fontSize: { xs: '0.7rem', md: '0.8rem' } }}
-                                                    >
-                                                        {seat.seatNo}
-                                                    </Typography>
-                                                </MotionBox>
-                                            );
-                                        })}
+                                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        {curFloor.rooms.map((room, ri) => (
+                                            <Box key={room.id}>
+                                                <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5, color: 'primary.main', px: 1 }}>
+                                                    {room.name}
+                                                </Typography>
+                                                <Box sx={{
+                                                    display: 'grid',
+                                                    gridTemplateColumns: { xs: 'repeat(auto-fill, minmax(48px, 1fr))', md: 'repeat(auto-fill, minmax(56px, 1fr))' },
+                                                    gap: { xs: 1, md: 1.5 },
+                                                }}>
+                                                    {room.seats.map((seat, i) => {
+                                                        const isSelected = selectedLocation?.seatNo === seat.seatNo;
+                                                        return (
+                                                            <MotionBox
+                                                                key={seat.id}
+                                                                initial={{ opacity: 0, scale: 0.85 }}
+                                                                animate={{ opacity: 1, scale: 1 }}
+                                                                transition={{ delay: (ri * 10 + i) * 0.012, duration: 0.25 }}
+                                                                onClick={() => handleSeatSelect(seat)}
+                                                                sx={{
+                                                                    aspectRatio: '1',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    borderRadius: 2,
+                                                                    cursor: seat.available ? 'pointer' : 'not-allowed',
+                                                                    opacity: seat.available ? 1 : 0.25,
+                                                                    border: '2px solid',
+                                                                    borderColor: isSelected ? 'primary.main' : seat.available ? theme.palette.divider : 'transparent',
+                                                                    bgcolor: isSelected
+                                                                        ? (isDark ? 'rgba(0,173,181,0.12)' : 'rgba(59,172,182,0.12)')
+                                                                        : seat.available ? 'background.paper' : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
+                                                                    transition: 'all 0.2s ease',
+                                                                    '&:hover': seat.available ? {
+                                                                        transform: 'scale(1.08)', borderColor: 'primary.main',
+                                                                        boxShadow: `0 4px 12px ${theme.palette.primary.main}20`,
+                                                                    } : {},
+                                                                }}
+                                                            >
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    fontWeight={isSelected ? 700 : 500}
+                                                                    color={isSelected ? 'primary.main' : 'text.primary'}
+                                                                    sx={{ fontSize: { xs: '0.7rem', md: '0.8rem' } }}
+                                                                >
+                                                                    {seat.seatNo}
+                                                                </Typography>
+                                                            </MotionBox>
+                                                        );
+                                                    })}
+                                                </Box>
+                                            </Box>
+                                        ))}
                                     </Box>
                                 </Paper>
                             </motion.div>
@@ -274,10 +287,37 @@ const LocationSelectionPage: React.FC = () => {
             <AnimatePresence>
                 {selectedLocation && (
                     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }} transition={{ duration: 0.3 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4, mb: 2 }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 4, mb: 2 }}>
+                            {error && (
+                                <Alert severity="error" sx={{ mb: 2, width: '100%', maxWidth: 400 }}>
+                                    {error}
+                                </Alert>
+                            )}
                             <Button
                                 variant="contained" size="large" fullWidth
-                                onClick={() => navigate('/details')}
+                                onClick={async () => {
+                                    if (selectedLocation && selectedSlot && selectedDate) {
+                                        setLoading(true); // Reusing loading state or new one? 
+                                        // Ideally use a submitting state. Using local loading variable? 
+                                        // The component has 'loading' state but it shows skeletons. 
+                                        // Let's create a local submitting state if possible or just use try-catch.
+                                        try {
+                                            // Find room to get price
+                                            const branch = branches.find(b => b.id === selectedLocation.branch);
+                                            const floor = branch?.floors.find(f => f.floorNumber === selectedLocation.floor);
+                                            const room = floor?.rooms.find(r => r.roomNo === selectedLocation.roomNo);
+
+                                            if (!room) throw new Error("Room details not found");
+
+                                            // Proceed to details without inserting in DB yet
+                                            navigate('/details');
+                                        } catch (err: any) {
+                                            console.error("Selection validation failed:", err);
+                                            setError(err.message || "Failed to proceed. Please try again.");
+                                            setLoading(false); // Reset loading
+                                        }
+                                    }
+                                }}
                                 endIcon={<ArrowForwardIcon />}
                                 sx={{ maxWidth: 400, py: 1.5 }}
                             >

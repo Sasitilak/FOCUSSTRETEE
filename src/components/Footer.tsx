@@ -15,7 +15,7 @@ const Footer: React.FC = () => {
         >
             <Container maxWidth="lg">
                 <Typography variant="body2" color="text.secondary" textAlign="center">
-                    © {new Date().getFullYear()} StudySpot — All rights reserved.
+                    © {new Date().getFullYear()} Acumen Hive — All rights reserved.
                 </Typography>
             </Container>
         </Box>

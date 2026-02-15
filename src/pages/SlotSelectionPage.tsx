@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { useBooking } from '../context/BookingContext';
+import { getHolidays, getBranches } from '../services/api';
+import type { Holiday } from '../types/booking';
 
 const SlotSelectionPage: React.FC = () => {
     const navigate = useNavigate();
@@ -14,10 +16,31 @@ const SlotSelectionPage: React.FC = () => {
     const { setSelectedDate, setSelectedSlot } = useBooking();
     const [fromDate, setFromDate] = useState<Dayjs | null>(dayjs());
     const [toDate, setToDate] = useState<Dayjs | null>(dayjs().add(1, 'day'));
+    const [basePrice, setBasePrice] = useState<number>(50);
+    const [holidays, setHolidays] = useState<Holiday[]>([]);
     const [error, setError] = useState<string | null>(null);
 
+    useEffect(() => {
+        getHolidays().then(setHolidays).catch(console.error);
+
+        // Fetch branches to get base price
+        getBranches().then(branches => {
+            const prices = branches.flatMap(b => b.floors.flatMap(f => f.rooms.map(r => r.price_daily || 50)));
+            if (prices.length > 0) {
+                setBasePrice(Math.min(...prices));
+            }
+        }).catch(err => {
+            console.error('Failed to fetch rooms for pricing:', err);
+        });
+    }, []);
+
+    const shouldDisableDate = (date: Dayjs) => {
+        const formatted = date.format('YYYY-MM-DD');
+        return holidays.some(h => h.date === formatted && (h.branchId === null));
+    };
+
     const days = fromDate && toDate ? toDate.diff(fromDate, 'day') + 1 : 0;
-    const pricePerDay = 50;
+    const pricePerDay = basePrice;
     const total = days * pricePerDay;
 
     useEffect(() => {
@@ -27,7 +50,7 @@ const SlotSelectionPage: React.FC = () => {
     const handleContinue = () => {
         if (!fromDate || !toDate || error) return;
         setSelectedDate(`${fromDate.format('YYYY-MM-DD')} to ${toDate.format('YYYY-MM-DD')}`);
-        setSelectedSlot({ id: `slot-${fromDate.format('YYYYMMDD')}-${toDate.format('YYYYMMDD')}`, time: `${days} day${days > 1 ? 's' : ''}`, available: true, price: total });
+        setSelectedSlot({ id: `slot-${fromDate.format('YYYYMMDD')}-${toDate.format('YYYYMMDD')}`, time: `${days} day${days > 1 ? 's' : ''}`, available: true, price: total, durationDays: days });
         navigate('/location');
     };
 
@@ -51,11 +74,27 @@ const SlotSelectionPage: React.FC = () => {
                             <Grid container spacing={3}>
                                 <Grid size={{ xs: 12, sm: 6 }}>
                                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>From</Typography>
-                                    <DatePicker value={fromDate} onChange={v => setFromDate(v)} format="DD/MM/YYYY" minDate={dayjs()} maxDate={dayjs().add(90, 'day')} slotProps={{ textField: { fullWidth: true } }} />
+                                    <DatePicker
+                                        value={fromDate}
+                                        onChange={v => setFromDate(v)}
+                                        shouldDisableDate={shouldDisableDate}
+                                        format="DD/MM/YYYY"
+                                        minDate={dayjs()}
+                                        maxDate={dayjs().add(90, 'day')}
+                                        slotProps={{ textField: { fullWidth: true } }}
+                                    />
                                 </Grid>
                                 <Grid size={{ xs: 12, sm: 6 }}>
                                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>To</Typography>
-                                    <DatePicker value={toDate} onChange={v => setToDate(v)} format="DD/MM/YYYY" minDate={fromDate || dayjs()} maxDate={dayjs().add(90, 'day')} slotProps={{ textField: { fullWidth: true } }} />
+                                    <DatePicker
+                                        value={toDate}
+                                        onChange={v => setToDate(v)}
+                                        shouldDisableDate={shouldDisableDate}
+                                        format="DD/MM/YYYY"
+                                        minDate={fromDate || dayjs()}
+                                        maxDate={dayjs().add(90, 'day')}
+                                        slotProps={{ textField: { fullWidth: true } }}
+                                    />
                                 </Grid>
                             </Grid>
                         </LocalizationProvider>

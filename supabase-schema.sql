@@ -120,6 +120,12 @@ CREATE POLICY "admin_read_admins" ON admins FOR SELECT
 --   '0 0 * * *',
 --   $$UPDATE bookings SET status = 'expired' WHERE status = 'confirmed' AND end_date < CURRENT_DATE;$$
 -- );
+--
+-- SELECT cron.schedule(
+--   'cleanup-screenshots',
+--   '0 3 * * *',
+--   $$UPDATE bookings SET payment_screenshot_url = NULL WHERE status = 'confirmed' AND payment_screenshot_url IS NOT NULL AND updated_at < NOW() - INTERVAL '2 days';$$
+-- );
 
 -- 5. SEED DATA ------------------------------------------------
 

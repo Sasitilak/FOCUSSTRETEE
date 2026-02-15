@@ -1,46 +1,46 @@
 import React, { useState } from 'react';
 import {
     Box, Container, Typography, TextField, Button, Paper, CircularProgress,
-    Alert, useTheme,
+    Alert, useTheme, InputAdornment, IconButton
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import PhoneIcon from '@mui/icons-material/Phone';
+import PersonIcon from '@mui/icons-material/Person';
 import LockIcon from '@mui/icons-material/Lock';
+import Visibility from '@mui/icons-material/Visibility';
+import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { useAuth } from '../../context/AuthContext';
 
 const AdminLogin: React.FC = () => {
     const theme = useTheme();
     const navigate = useNavigate();
-    const { signInWithPhone, verifyOtp, isAdmin } = useAuth();
+    const { signInWithUsername, isAdmin } = useAuth();
 
-    const [step, setStep] = useState<'phone' | 'otp'>('phone');
-    const [phone, setPhone] = useState('+91');
-    const [otp, setOtp] = useState('');
+    const [username, setUsername] = useState('');
+    const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
-    // If already admin, redirect
     React.useEffect(() => {
         if (isAdmin) navigate('/admin');
     }, [isAdmin, navigate]);
 
-    const handleSendOtp = async () => {
-        if (phone.length < 10) { setError('Enter a valid phone number'); return; }
-        setLoading(true); setError('');
-        const { error: err } = await signInWithPhone(phone);
-        setLoading(false);
-        if (err) { setError(err); return; }
-        setStep('otp');
-    };
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!username || !password) { setError('Please enter both username and password'); return; }
 
-    const handleVerifyOtp = async () => {
-        if (otp.length < 4) { setError('Enter the OTP'); return; }
         setLoading(true); setError('');
-        const { error: err } = await verifyOtp(phone, otp);
-        setLoading(false);
-        if (err) { setError(err); return; }
-        // AuthContext will check admin table and set isAdmin
-        navigate('/admin');
+
+        const { error: err } = await signInWithUsername(username, password);
+
+        if (err) {
+            setLoading(false);
+            if (err.includes('Invalid login credentials')) setError('Invalid username or password');
+            else setError(err);
+        } else {
+            // Context updates state
+        }
     };
 
     return (
@@ -54,62 +54,61 @@ const AdminLogin: React.FC = () => {
                     border: `1px solid ${theme.palette.divider}`,
                     textAlign: 'center',
                 }}>
-                    <Box sx={{
-                        width: 56, height: 56, borderRadius: '16px', mx: 'auto', mb: 3,
-                        background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                        <LockIcon sx={{ color: '#fff', fontSize: 28 }} />
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 3 }}>
+                        <Box sx={{
+                            width: 40, height: 40, borderRadius: '12px',
+                            background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.light})`,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 8px 16px rgba(0,173,181,0.2)'
+                        }}>
+                            <MenuBookIcon sx={{ color: '#fff', fontSize: 24 }} />
+                        </Box>
+                        <Box>
+                            <Typography variant="h5" fontWeight={800} sx={{ lineHeight: 1.1 }}>Acumen Hive</Typography>
+                            <Typography variant="caption" color="text.secondary">Admin Portal</Typography>
+                        </Box>
                     </Box>
 
-                    <Typography variant="h5" fontWeight={700} gutterBottom>Admin Login</Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                        {step === 'phone' ? 'Enter your registered admin phone number' : `Enter the OTP sent to ${phone}`}
+                        Sign in with username and password
                     </Typography>
 
                     {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
 
-                    {step === 'phone' ? (
-                        <>
-                            <TextField
-                                fullWidth label="Phone Number" variant="outlined"
-                                value={phone} onChange={e => setPhone(e.target.value)}
-                                placeholder="+91 98765 43210"
-                                InputProps={{ startAdornment: <PhoneIcon sx={{ mr: 1, color: 'text.secondary' }} /> }}
-                                sx={{ mb: 2 }}
-                            />
-                            <Button
-                                variant="contained" fullWidth size="large"
-                                onClick={handleSendOtp} disabled={loading}
-                                sx={{ py: 1.5 }}
-                            >
-                                {loading ? <CircularProgress size={24} color="inherit" /> : 'Send OTP'}
-                            </Button>
-                        </>
-                    ) : (
-                        <>
-                            <TextField
-                                fullWidth label="OTP Code" variant="outlined"
-                                value={otp} onChange={e => setOtp(e.target.value)}
-                                placeholder="123456"
-                                inputProps={{ maxLength: 6, style: { textAlign: 'center', letterSpacing: '0.3em', fontSize: '1.2rem' } }}
-                                sx={{ mb: 2 }}
-                            />
-                            <Button
-                                variant="contained" fullWidth size="large"
-                                onClick={handleVerifyOtp} disabled={loading}
-                                sx={{ py: 1.5 }}
-                            >
-                                {loading ? <CircularProgress size={24} color="inherit" /> : 'Verify & Login'}
-                            </Button>
-                            <Button
-                                fullWidth size="small" sx={{ mt: 1, color: 'text.secondary' }}
-                                onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
-                            >
-                                Change Number
-                            </Button>
-                        </>
-                    )}
+                    <form onSubmit={handleLogin}>
+                        <TextField
+                            fullWidth label="Username" variant="outlined"
+                            value={username} onChange={e => setUsername(e.target.value)}
+                            placeholder="admin"
+                            InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment> }}
+                            sx={{ mb: 2 }}
+                        />
+                        <TextField
+                            fullWidth label="Password" variant="outlined"
+                            value={password} onChange={e => setPassword(e.target.value)}
+                            type={showPassword ? 'text' : 'password'}
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment>,
+                                endAdornment: (
+                                    <InputAdornment position="end">
+                                        <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                                        </IconButton>
+                                    </InputAdornment>
+                                )
+                            }}
+                            sx={{ mb: 3 }}
+                        />
+
+                        <Button
+                            type="submit"
+                            variant="contained" fullWidth size="large"
+                            disabled={loading}
+                            sx={{ py: 1.5 }}
+                        >
+                            {loading ? <CircularProgress size={24} color="inherit" /> : 'Sign In'}
+                        </Button>
+                    </form>
                 </Paper>
             </Container>
         </Box>

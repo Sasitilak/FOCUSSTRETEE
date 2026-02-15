@@ -76,7 +76,7 @@ const LandingPage: React.FC = () => {
                                 fontSize: { xs: '0.95rem', md: '1.05rem' },
                             }}
                         >
-                            Book your seat at StudySpot — quiet zones, focus rooms, and premium cabins across two branches.
+                            Book your seat at Acumen Hive — quiet zones, focus rooms, and premium cabins across two branches.
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
                             <Button

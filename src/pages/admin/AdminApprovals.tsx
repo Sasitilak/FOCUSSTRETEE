@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, Card, CardContent, Grid, Button,
     Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-    LinearProgress, Alert, Snackbar, useTheme,
+    LinearProgress, Alert, Snackbar, useTheme, DialogContentText
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
@@ -17,6 +17,7 @@ const AdminApprovals: React.FC = () => {
     const [processing, setProcessing] = useState<string | null>(null);
     const [viewScreenshot, setViewScreenshot] = useState<BookingResponse | null>(null);
     const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' });
+    const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'approve' | 'reject' } | null>(null);
 
     useEffect(() => {
         const fetchBookings = async () => {
@@ -40,8 +41,10 @@ const AdminApprovals: React.FC = () => {
         try {
             await approveBooking(id);
             setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'confirmed' as const } : b));
-            setSnack({ open: true, msg: `Booking approved!`, severity: 'success' });
-        } catch { setSnack({ open: true, msg: 'Failed', severity: 'error' }); }
+            setSnack({ open: true, msg: `Booking approved & WhatsApp confirmation sent!`, severity: 'success' });
+        } catch (err: any) {
+            setSnack({ open: true, msg: err.message || 'Approval failed', severity: 'error' });
+        }
         setProcessing(null);
     };
 
@@ -51,8 +54,18 @@ const AdminApprovals: React.FC = () => {
             await rejectBooking(id);
             setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'rejected' as const } : b));
             setSnack({ open: true, msg: `Booking rejected`, severity: 'success' });
-        } catch { setSnack({ open: true, msg: 'Failed', severity: 'error' }); }
+        } catch (err: any) {
+            setSnack({ open: true, msg: err.message || 'Rejection failed', severity: 'error' });
+        }
         setProcessing(null);
+    };
+
+    const confirmAndExecute = () => {
+        if (!confirmAction) return;
+        const { id, type } = confirmAction;
+        setConfirmAction(null);
+        if (type === 'approve') handleApprove(id);
+        else handleReject(id);
     };
 
     if (loading) return <Box><LinearProgress /></Box>;
@@ -79,7 +92,7 @@ const AdminApprovals: React.FC = () => {
                             >
                                 <CardContent sx={{ p: 2.5 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                                        <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>{b.id.slice(0, 8)}</Typography>
+                                        <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
                                         <Chip label="Pending" color="warning" size="small" />
                                     </Box>
 
@@ -113,7 +126,7 @@ const AdminApprovals: React.FC = () => {
                                         <Button
                                             fullWidth variant="contained" color="success" size="small"
                                             startIcon={<CheckCircleIcon />}
-                                            onClick={() => handleApprove(b.id)}
+                                            onClick={() => setConfirmAction({ id: b.id, type: 'approve' })}
                                             disabled={processing === b.id}
                                         >
                                             Approve
@@ -121,7 +134,7 @@ const AdminApprovals: React.FC = () => {
                                         <Button
                                             fullWidth variant="outlined" color="error" size="small"
                                             startIcon={<CancelIcon />}
-                                            onClick={() => handleReject(b.id)}
+                                            onClick={() => setConfirmAction({ id: b.id, type: 'reject' })}
                                             disabled={processing === b.id}
                                         >
                                             Reject
@@ -150,8 +163,38 @@ const AdminApprovals: React.FC = () => {
                 </DialogContent>
                 <DialogActions sx={{ p: 2, gap: 1 }}>
                     <Button onClick={() => setViewScreenshot(null)}>Close</Button>
-                    <Button variant="contained" color="success" onClick={() => { handleApprove(viewScreenshot!.id); setViewScreenshot(null); }}>Approve</Button>
-                    <Button variant="outlined" color="error" onClick={() => { handleReject(viewScreenshot!.id); setViewScreenshot(null); }}>Reject</Button>
+                    <Button variant="contained" color="success" onClick={() => { setConfirmAction({ id: viewScreenshot!.id, type: 'approve' }); setViewScreenshot(null); }}>Approve</Button>
+                    <Button variant="outlined" color="error" onClick={() => { setConfirmAction({ id: viewScreenshot!.id, type: 'reject' }); setViewScreenshot(null); }}>Reject</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Action Confirmation Dialog */}
+            <Dialog
+                open={!!confirmAction}
+                onClose={() => setConfirmAction(null)}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>
+                    {confirmAction?.type === 'approve' ? 'Confirm Approval?' : 'Confirm Rejection?'}
+                </DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        {confirmAction?.type === 'approve'
+                            ? `Are you sure you want to approve booking ${confirmAction?.id}? This will confirm the seat and send a WhatsApp notification to the customer.`
+                            : `Are you sure you want to reject booking ${confirmAction?.id}? The customer will be notified that their booking was not successful.`
+                        }
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions sx={{ p: 2, gap: 1 }}>
+                    <Button onClick={() => setConfirmAction(null)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+                    <Button
+                        onClick={confirmAndExecute}
+                        variant="contained"
+                        color={confirmAction?.type === 'approve' ? 'success' : 'error'}
+                        sx={{ borderRadius: 2 }}
+                    >
+                        Yes, {confirmAction?.type === 'approve' ? 'Approve' : 'Reject'}
+                    </Button>
                 </DialogActions>
             </Dialog>
 

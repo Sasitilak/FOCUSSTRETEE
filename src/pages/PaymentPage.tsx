@@ -9,7 +9,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ImageIcon from '@mui/icons-material/Image';
 import BookingSummary from '../components/BookingSummary';
-import { createBooking } from '../services/api';
+import { createBooking, uploadReceipt, generateShortBookingId, getSetting } from '../services/api';
 import { useBooking } from '../context/BookingContext';
 
 const PaymentPage: React.FC = () => {
@@ -22,13 +22,30 @@ const PaymentPage: React.FC = () => {
         setBooking, setPaymentStatus,
     } = useBooking();
 
-    const [preview, setPreview] = useState<string | null>(null);
+    const [preview, setPreview] = useState<string | null>(() => {
+        if (paymentScreenshot) {
+            try { return URL.createObjectURL(paymentScreenshot); } catch (e) { return null; }
+        }
+        return null;
+    });
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    // UPI State
+    const [bookingId] = useState(() => generateShortBookingId());
+    const [upiConfig, setUpiConfig] = useState({ id: 'yourupi@bank', name: 'Acumen Hive', phone: '' });
+
     useEffect(() => {
         if (!selectedSlot || !selectedLocation || !bookingDetails) navigate('/slots');
+        loadConfig();
     }, [selectedSlot, selectedLocation, bookingDetails, navigate]);
+
+    const loadConfig = async () => {
+        const [uid, uname, uphone] = await Promise.all([getSetting('upi_id'), getSetting('upi_merchant_name'), getSetting('upi_phone')]);
+        if (uid) setUpiConfig(prev => ({ ...prev, id: uid }));
+        if (uname) setUpiConfig(prev => ({ ...prev, name: uname }));
+        if (uphone) setUpiConfig(prev => ({ ...prev, phone: uphone }));
+    };
 
     const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -39,28 +56,57 @@ const PaymentPage: React.FC = () => {
     };
 
     const handleSubmit = async () => {
+        if (submitting) return;
         if (!paymentScreenshot) { setError('Please upload your payment screenshot'); return; }
         if (!selectedSlot || !selectedDate || !selectedLocation || !bookingDetails) return;
         setSubmitting(true);
         setError(null);
         try {
-            const booking = await createBooking(selectedSlot.id, selectedDate, selectedLocation, bookingDetails, paymentScreenshot);
+            const publicUrl = await uploadReceipt(paymentScreenshot);
+
+            const booking = await createBooking({
+                ...bookingDetails,
+                id: bookingId, // Use generated ID
+                slotId: selectedSlot.id,
+                slotTime: selectedSlot.time,
+                slotDate: selectedDate,
+                location: selectedLocation,
+                amount: selectedSlot.price,
+                paymentScreenshotUrl: publicUrl
+            });
             setBooking(booking);
             setPaymentStatus('success');
             navigate('/confirmation');
-        } catch {
-            setError('Something went wrong. Please try again.');
+        } catch (err: any) {
+            setError(err.message || 'Something went wrong. Please try again.');
         } finally {
             setSubmitting(false);
         }
     };
+
+    // Generate UPI Link
+    const generateUPILink = () => {
+        const note = `${bookingId}${bookingDetails?.name ? ` - ${bookingDetails.name}` : ''}`;
+        const params = new URLSearchParams({
+            pa: upiConfig.id,
+            pn: upiConfig.name,
+            am: (selectedSlot?.price || 0).toString(),
+            cu: 'INR',
+            tn: note, // Transaction Note with ID and Name
+            tr: bookingId  // Transaction Ref
+        });
+        return `upi://pay?${params.toString()}`;
+    };
+
+    const upiLink = generateUPILink();
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiLink)}`;
 
     return (
         <Container maxWidth="lg" sx={{ py: 5 }}>
             <Box className="animate-fade-in-up">
                 <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/details')} sx={{ mb: 2, color: 'text.secondary' }} disabled={submitting}>Back</Button>
                 <Typography variant="h3" gutterBottom>Complete Payment</Typography>
-                <Typography color="text.secondary" sx={{ mb: 4 }}>Pay via UPI and upload the screenshot</Typography>
+                <Typography color="text.secondary" sx={{ mb: 4 }}>Scan the QR code or pay via UPI and upload the screenshot</Typography>
             </Box>
 
             <Grid container spacing={4}>
@@ -70,11 +116,40 @@ const PaymentPage: React.FC = () => {
                         <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Payment Details</Typography>
 
                         <Box sx={{ p: 3, borderRadius: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(124,58,237,0.08)' : 'rgba(124,58,237,0.04)', border: `1px dashed ${theme.palette.primary.main}40`, mb: 3 }}>
-                            <Typography variant="body2" color="text.secondary" gutterBottom>Pay to UPI</Typography>
-                            <Typography variant="h5" fontWeight={700} sx={{ fontFamily: 'monospace' }}>studyspot@upi</Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                Amount: <b>₹{selectedSlot?.price}</b>
-                            </Typography>
+
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 2 }}>
+                                <Box>
+                                    <Typography variant="body2" color="text.secondary">Total Amount</Typography>
+                                    <Typography variant="h4" fontWeight={700} color="primary">₹{selectedSlot?.price}</Typography>
+                                </Box>
+                                <Box sx={{ textAlign: 'right' }}>
+                                    <Typography variant="body2" color="text.secondary">Booking ID</Typography>
+                                    <Typography variant="h5" fontWeight={700} sx={{ fontFamily: 'monospace' }}>{bookingId}</Typography>
+                                </Box>
+                            </Box>
+
+                            <Divider sx={{ my: 2 }} />
+
+                            <Box sx={{ textAlign: 'center', mb: 2 }}>
+                                <Typography variant="body2" color="text.secondary" gutterBottom>Scan to pay <b>{upiConfig.name}</b></Typography>
+
+                                {/* QR Code Display */}
+                                <Box sx={{
+                                    my: 3, p: 2, bgcolor: '#fff', borderRadius: 3,
+                                    display: 'inline-block', boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+                                    border: `1px solid ${theme.palette.divider}`
+                                }}>
+                                    <Box
+                                        component="img"
+                                        src={qrCodeUrl}
+                                        alt="UPI QR Code"
+                                        sx={{ width: 220, height: 220, display: 'block' }}
+                                    />
+                                </Box>
+
+                                <Typography variant="h6" fontWeight={600} gutterBottom sx={{ mt: 1 }}>{upiConfig.id}</Typography>
+                                {upiConfig.phone && <Typography variant="body2" color="text.secondary">or pay to <b>{upiConfig.phone}</b></Typography>}
+                            </Box>
                         </Box>
 
                         <Divider sx={{ my: 3 }} />
@@ -130,9 +205,9 @@ const PaymentPage: React.FC = () => {
                     <Box sx={{ position: 'sticky', top: 90 }}>
                         <BookingSummary />
                         <Paper elevation={0} sx={{ p: 3, mt: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(250,204,21,0.08)' : '#fffbeb', border: '1px solid #fbbf24' }}>
-                            <Typography variant="body2" fontWeight={600} sx={{ color: '#92400e', mb: 0.5 }}>💡 How it works</Typography>
+                            <Typography variant="body2" fontWeight={600} sx={{ color: '#92400e', mb: 0.5 }}>💡 Important</Typography>
                             <Typography variant="body2" sx={{ color: '#78350f' }}>
-                                Pay the amount via UPI, take a screenshot, and upload it here. We'll verify your payment and confirm your booking via WhatsApp.
+                                Use <b>{bookingId}</b> as the reference in your payment if asked. This ensures your booking is instantly confirmed.
                             </Typography>
                         </Paper>
                     </Box>

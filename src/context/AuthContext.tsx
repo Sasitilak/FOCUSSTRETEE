@@ -1,19 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import type { User, Session } from '@supabase/supabase-js';
+import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 
 // ─── Test credentials (dev only — stripped from production builds) ───
-const TEST_PHONE = import.meta.env.DEV ? '+91 00000 00000' : '';
-const TEST_OTP = import.meta.env.DEV ? '123456' : '';
+
 
 interface AuthContextType {
     user: User | null;
     session: Session | null;
     loading: boolean;
     isAdmin: boolean;
-    signInWithPhone: (phone: string) => Promise<{ error: string | null }>;
-    verifyOtp: (phone: string, token: string) => Promise<{ error: string | null }>;
+    adminLoading: boolean;
+    signInWithUsername: (username: string, password: string) => Promise<{ error: string | null }>;
     signOut: () => Promise<void>;
+    checkAdmin: (user: User) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,14 +23,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
     const [isAdmin, setIsAdmin] = useState(false);
+    const [adminLoading, setAdminLoading] = useState(false);
     const [testMode, setTestMode] = useState(false);
+    const lastCheckedUser = React.useRef<string | null>(null);
 
     useEffect(() => {
         // Check if we were previously in test mode (dev only)
         if (import.meta.env.DEV && sessionStorage.getItem('test_admin') === 'true') {
             setTestMode(true);
             setIsAdmin(true);
-            setUser({ id: 'test-admin', phone: TEST_PHONE || 'test' } as User);
+            setUser({ id: 'test-admin', email: 'admin@acumen.internal' } as User);
             setLoading(false);
             return;
         }
@@ -39,66 +41,70 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         supabase.auth.getSession().then(({ data: { session: s } }) => {
             setSession(s);
-            setUser(s?.user ?? null);
-            if (s?.user) checkAdmin(s.user.phone ?? '');
+            const currentUser = s?.user ?? null;
+            setUser(currentUser);
             setLoading(false);
+            if (currentUser) checkAdmin(currentUser);
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, s: Session | null) => {
             setSession(s);
-            setUser(s?.user ?? null);
-            if (s?.user) checkAdmin(s.user.phone ?? '');
-            else setIsAdmin(false);
+            const newUser = s?.user ?? null;
+            setUser(newUser);
+
+            if (newUser) {
+                checkAdmin(newUser);
+            } else {
+                setIsAdmin(false);
+                lastCheckedUser.current = null;
+            }
         });
 
         return () => subscription.unsubscribe();
     }, []);
 
-    const checkAdmin = async (phone: string) => {
-        if (!phone) { setIsAdmin(false); return; }
-        const { data } = await supabase
-            .from('admins')
-            .select('id')
-            .eq('phone', phone)
-            .maybeSingle();
-        setIsAdmin(!!data);
-    };
+    const checkAdmin = React.useCallback(async (user: User) => {
+        if (!user || !user.email) { setIsAdmin(false); return; }
+        if (lastCheckedUser.current === user.id) return;
 
-    const signInWithPhone = async (phone: string): Promise<{ error: string | null }> => {
-        // Test mode: accept test phone without Supabase (dev only)
-        const cleanPhone = phone.replace(/\s/g, '');
-        if (TEST_PHONE && cleanPhone === TEST_PHONE.replace(/\s/g, '')) {
-            return { error: null }; // Skip real OTP
+
+        setAdminLoading(true);
+        // We set this immediately to prevent concurrent calls from the Effect
+        lastCheckedUser.current = user.id;
+
+        try {
+            const username = user.email.split('@')[0];
+
+            const timeout = new Promise<null>((_, reject) =>
+                setTimeout(() => reject(new Error('Timeout')), 10000)
+            );
+
+            const fetchAdmin = (async () => {
+                const { data, error } = await supabase
+                    .from('admins')
+                    .select('username')
+                    .in('username', [username, user.email])
+                    .maybeSingle();
+                if (error) throw error;
+                return data;
+            })();
+
+            const result = await Promise.race([fetchAdmin, timeout]);
+            const isAdm = !!result;
+            setIsAdmin(isAdm);
+        } catch (err) {
+            console.error("[Auth] checkAdmin error:", err);
+            setIsAdmin(false);
+            lastCheckedUser.current = null;
+        } finally {
+            setAdminLoading(false);
         }
+    }, []); // Stable reference
 
-        if (!isSupabaseConfigured()) {
-            return { error: 'Supabase not configured' };
-        }
-
-        const { error } = await supabase.auth.signInWithOtp({ phone });
-        return { error: error?.message ?? null };
-    };
-
-    const verifyOtp = async (phone: string, token: string): Promise<{ error: string | null }> => {
-        const cleanPhone = phone.replace(/\s/g, '');
-
-        // Test mode: accept test credentials (dev only)
-        if (TEST_PHONE && cleanPhone === TEST_PHONE.replace(/\s/g, '')) {
-            if (token === TEST_OTP) {
-                setTestMode(true);
-                setIsAdmin(true);
-                setUser({ id: 'test-admin', phone: TEST_PHONE } as User);
-                sessionStorage.setItem('test_admin', 'true');
-                return { error: null };
-            }
-            return { error: 'Invalid OTP' };
-        }
-
-        if (!isSupabaseConfigured()) {
-            return { error: 'Supabase not configured' };
-        }
-
-        const { error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' });
+    const signInWithUsername = async (username: string, password: string): Promise<{ error: string | null }> => {
+        if (!isSupabaseConfigured()) return { error: 'Supabase not configured' };
+        const email = `${username}@acumen.internal`;
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         return { error: error?.message ?? null };
     };
 
@@ -115,7 +121,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
 
     return (
-        <AuthContext.Provider value={{ user, session, loading, isAdmin, signInWithPhone, verifyOtp, signOut }}>
+        <AuthContext.Provider value={{ user, session, loading, isAdmin, adminLoading, signInWithUsername, signOut, checkAdmin }}>
             {children}
         </AuthContext.Provider>
     );
