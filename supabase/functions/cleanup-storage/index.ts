@@ -51,25 +51,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (pathsToDelete.length > 0) {
-      // 4. Delete from Storage
-      const { error: deleteError } = await supabase
-        .storage
-        .from('payment_uploads')
-        .remove(pathsToDelete);
-
-      if (deleteError) {
-        console.error("Storage deletion failed", deleteError);
-        throw deleteError;
-      }
-
-      // 5. Update Database to NULL
+    if (bookingIdsToUpdate.length > 0) {
+      // 4. Update Database to NULL (First, to prevent broken links if deletion succeeds but update fails)
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ payment_screenshot_url: null })
         .in('id', bookingIdsToUpdate)
 
       if (updateError) throw updateError;
+
+      // 5. Delete from Storage (Second)
+      const { error: deleteError } = await supabase
+        .storage
+        .from('payment_uploads')
+        .remove(pathsToDelete);
+
+      if (deleteError) {
+        console.error("Storage deletion failed after DB update", deleteError);
+        // We log it but maybe we shouldn't fail the request completely since DB is clean?
+        // But for transparency we throw.
+        throw deleteError;
+      }
     }
 
     return new Response(

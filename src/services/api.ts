@@ -743,10 +743,7 @@ export const hasActiveBookings = async (branchId: number, floorNumber?: number, 
     const { data, error } = await query;
     if (error) {
         console.error("hasActiveBookings check failed", error);
-        return []; // Fail safe or throw? Return empty allows deletion which might be dangerous. 
-        // But for check, maybe throw is better?
-        // Let's log and return empty to avoid UI breakage, but in production we'd want safety.
-        // Given 'null' ID constraint error earlier, safest to fix logic.
+        throw new Error(`Failed to check for active bookings: ${error.message}`);
     }
 
     return (data || []).map((b: any) => `${b.id} (${b.customer_name} - ${b.start_date})`);
@@ -1155,10 +1152,16 @@ export const sendBulkAnnouncement = async (message: string, targets: string[]): 
 
 
 export const sendWhatsAppConfirmation = async (phone: string, message: string) => {
-    await delay(500);
-    console.log(`[WhatsApp] Sending to ${phone}: ${message}`);
-    // Future integration with WhatsApp API provider
-    return;
+    // Invoke the send-whatsapp Edge Function
+    // We expect the function to handle 'phone' + 'message' as a broadcast/custom message
+    const { error } = await supabase.functions.invoke('send-whatsapp', {
+        body: { phone, message }
+    });
+
+    if (error) {
+        console.error(`[WhatsApp] Failed to send to ${phone}`, error);
+        throw error;
+    }
 };
 
 // ─── System Settings (Maintenance Mode) ──────────────────────────
@@ -1269,7 +1272,7 @@ function mapBookingRow(row: Record<string, unknown>): BookingResponse {
             floor: (floors?.floor_number ?? 0) as number,
             roomNo: (rooms?.name ?? rooms?.room_no ?? `F${(floors?.floor_number ?? 0)}`) as string,
             seatNo: (seats?.seat_no ?? '') as string,
-            isAc: (floors?.is_ac as boolean) ?? false,
+            isAc: (rooms?.is_ac as boolean) ?? false,
         },
         customerName: row.customer_name as string,
         customerPhone: row.customer_phone as string,

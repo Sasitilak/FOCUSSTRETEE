@@ -107,8 +107,22 @@ const AdminSeats: React.FC = () => {
             const days = endDate.diff(startDate, 'day') + 1;
             const amount = days * (selectedSeat.price_daily || 50);
 
-            await createAdminBooking({ name: customerName, phone: customerPhone, amount }, location, start, end);
-            await blockSeat(selectedSeat.id); // Mark as blocked/booked
+            // Perform transactional booking creation
+            let bookingId: string | null = null;
+            try {
+                const booking = await createAdminBooking({ name: customerName, phone: customerPhone, amount }, location, start, end);
+                bookingId = booking.id;
+
+                // Attempt to block the seat
+                await blockSeat(selectedSeat.id);
+            } catch (err: any) {
+                // Rollback if booking was created but blocking failed
+                if (bookingId) {
+                    console.error("Blocking failed, rolling back booking:", bookingId);
+                    await revokeBooking(bookingId).catch(console.error);
+                }
+                throw err; // Re-throw to be caught by outer catch
+            }
 
             setSnack({ msg: 'Booking created and confirmed!', severity: 'success' });
             setBookingDialog(false);

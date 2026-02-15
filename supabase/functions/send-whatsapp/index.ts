@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts"
 
 const WHATSAPP_API_TOKEN = Deno.env.get('WHATSAPP_API_TOKEN')
 const WHATSAPP_PHONE_ID = Deno.env.get('WHATSAPP_PHONE_ID')
@@ -58,24 +58,45 @@ serve(async (req) => {
             throw new Error("Invalid request: Missing booking or broadcast data");
         }
 
-        const response = await fetch(
-            `https://graph.facebook.com/v17.0/${WHATSAPP_PHONE_ID}/messages`,
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(whatsappPayload),
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+        try {
+            const response = await fetch(
+                `https://graph.facebook.com/v17.0/${WHATSAPP_PHONE_ID}/messages`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(whatsappPayload),
+                    signal: controller.signal
+                }
+            );
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                console.error("WhatsApp API Error:", response.status, errorBody);
+                return new Response(JSON.stringify({ error: "Upstream WhatsApp API Error", details: errorBody }), {
+                    status: response.status,
+                    headers: { "Content-Type": "application/json" }
+                });
             }
-        )
 
-        const data = await response.json()
-        console.log("WhatsApp API Response:", data);
+            const data = await response.json()
+            console.log("WhatsApp API Response:", data);
 
-        return new Response(JSON.stringify(data), {
-            headers: { "Content-Type": "application/json" },
-        })
+            return new Response(JSON.stringify(data), {
+                headers: { "Content-Type": "application/json" },
+            })
+        } catch (err) {
+            clearTimeout(timeoutId);
+            throw err;
+        }
+
+
 
     } catch (error) {
         return new Response(JSON.stringify({ error: error.message }), {

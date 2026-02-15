@@ -10,12 +10,13 @@ import dayjs, { Dayjs } from 'dayjs';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EventBusyIcon from '@mui/icons-material/EventBusy';
 import AddIcon from '@mui/icons-material/Add';
-import { getHolidays, addHoliday, deleteHoliday } from '../../services/api';
-import type { Holiday } from '../../types/booking';
+import { getHolidays, addHoliday, deleteHoliday, getBranches } from '../../services/api';
+import type { Holiday, Branch } from '../../types/booking';
 
 const AdminHolidays: React.FC = () => {
     const theme = useTheme();
     const [holidays, setHolidays] = useState<Holiday[]>([]);
+    const [branches, setBranches] = useState<Branch[]>([]);
     const [loading, setLoading] = useState(true);
     const [date, setDate] = useState<Dayjs | null>(dayjs());
     const [reason, setReason] = useState('');
@@ -28,10 +29,14 @@ const AdminHolidays: React.FC = () => {
     const loadHolidays = async () => {
         setLoading(true);
         try {
-            const data = await getHolidays();
-            setHolidays(data);
+            const [holidaysData, branchesData] = await Promise.all([
+                getHolidays(),
+                getBranches()
+            ]);
+            setHolidays(holidaysData);
+            setBranches(branchesData);
         } catch (err) {
-            console.error('Failed to load holidays:', err);
+            console.error('Failed to load data:', err);
         } finally {
             setLoading(false);
         }
@@ -103,8 +108,11 @@ const AdminHolidays: React.FC = () => {
                                     fullWidth
                                 >
                                     <MenuItem value="all">All Branches</MenuItem>
-                                    <MenuItem value={1}>Branch 1 — Koramangala</MenuItem>
-                                    <MenuItem value={2}>Branch 2 — Indiranagar</MenuItem>
+                                    {branches.map((b) => (
+                                        <MenuItem key={b.id} value={b.id}>
+                                            {b.name}
+                                        </MenuItem>
+                                    ))}
                                 </TextField>
                                 <TextField
                                     label="Reason"

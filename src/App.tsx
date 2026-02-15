@@ -52,35 +52,33 @@ const AppContent: React.FC = () => {
     <BrowserRouter>
       <AuthProvider>
         <BookingProvider>
-          <MaintenanceGuard>
-            <Routes>
-              {/* Public */}
-              <Route path="/" element={<><Header /><LandingPage /><Footer /></>} />
-              <Route path="/slots" element={<><Header /><SlotSelectionPage /><Footer /></>} />
-              <Route path="/location" element={<><Header /><LocationSelectionPage /><Footer /></>} />
-              <Route path="/details" element={<><Header /><BookingDetailsPage /><Footer /></>} />
-              <Route path="/payment" element={<><Header /><PaymentPage /><Footer /></>} />
-              <Route path="/confirmation" element={<><Header /><ConfirmationPage /><Footer /></>} />
+          <Routes>
+            {/* Public Routes - Wrapped in MaintenanceGuard */}
+            <Route path="/" element={<MaintenanceGuard><><Header /><LandingPage /><Footer /></></MaintenanceGuard>} />
+            <Route path="/slots" element={<MaintenanceGuard><><Header /><SlotSelectionPage /><Footer /></></MaintenanceGuard>} />
+            <Route path="/location" element={<MaintenanceGuard><><Header /><LocationSelectionPage /><Footer /></></MaintenanceGuard>} />
+            <Route path="/details" element={<MaintenanceGuard><><Header /><BookingDetailsPage /><Footer /></></MaintenanceGuard>} />
+            <Route path="/payment" element={<MaintenanceGuard><><Header /><PaymentPage /><Footer /></></MaintenanceGuard>} />
+            <Route path="/confirmation" element={<MaintenanceGuard><><Header /><ConfirmationPage /><Footer /></></MaintenanceGuard>} />
 
-              {/* Admin login (no layout) */}
-              <Route path="/admin/login" element={<AdminLogin />} />
+            {/* Admin login (no layout, no maintenance guard) */}
+            <Route path="/admin/login" element={<AdminLogin />} />
 
-              {/* Admin (protected) */}
-              <Route path="/admin" element={
-                <ProtectedRoute>
-                  <AdminLayout />
-                </ProtectedRoute>
-              }>
-                <Route index element={<AdminDashboard />} />
-                <Route path="bookings" element={<AdminBookings />} />
-                <Route path="approvals" element={<AdminApprovals />} />
-                <Route path="seats" element={<AdminSeats />} />
-                <Route path="holidays" element={<AdminHolidays />} />
-                <Route path="announcements" element={<AdminAnnouncements />} />
-                <Route path="locations" element={<AdminLocations />} />
-              </Route>
-            </Routes>
-          </MaintenanceGuard>
+            {/* Admin (protected, no maintenance guard) */}
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminLayout />
+              </ProtectedRoute>
+            }>
+              <Route index element={<AdminDashboard />} />
+              <Route path="bookings" element={<AdminBookings />} />
+              <Route path="approvals" element={<AdminApprovals />} />
+              <Route path="seats" element={<AdminSeats />} />
+              <Route path="holidays" element={<AdminHolidays />} />
+              <Route path="announcements" element={<AdminAnnouncements />} />
+              <Route path="locations" element={<AdminLocations />} />
+            </Route>
+          </Routes>
         </BookingProvider>
       </AuthProvider>
     </BrowserRouter>

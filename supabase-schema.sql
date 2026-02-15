@@ -129,6 +129,30 @@ CREATE POLICY "admin_read_admins" ON admins FOR SELECT
 
 -- 5. SEED DATA ------------------------------------------------
 
+-- 5.5 MIGRATION: ADD UPDATED_AT -------------------------------
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'bookings' AND column_name = 'updated_at') THEN
+        ALTER TABLE bookings ADD COLUMN updated_at TIMESTAMPTZ DEFAULT now();
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+   NEW.updated_at = now();
+   RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+DROP TRIGGER IF EXISTS update_bookings_updated_at ON bookings;
+CREATE TRIGGER update_bookings_updated_at
+BEFORE UPDATE ON bookings
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+
+
 -- Branches
 INSERT INTO branches (id, name, address) VALUES
   (1, 'Branch 1 — Koramangala', '4th Block, Koramangala'),
