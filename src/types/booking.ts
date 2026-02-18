@@ -3,6 +3,7 @@ export interface Location {
     floor: number;
     roomNo: string;
     seatNo: string;
+    roomId?: string;
     isAc?: boolean;
     branchName?: string;
 }

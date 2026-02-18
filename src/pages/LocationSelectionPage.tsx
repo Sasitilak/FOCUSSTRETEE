@@ -53,17 +53,22 @@ const LocationSelectionPage: React.FC = () => {
     const handleFloorSelect = (num: number) => {
         setSelectedFloor(num); setSelectedLocation(null);
     };
-    const handleSeatSelect = (seat: Seat) => {
+    const handleSeatSelect = (seat: Seat, room: any) => {
         if (!seat.available || !selectedBranch || !selectedFloor || !curFloor) return;
-        const foundRoom = curFloor.rooms.find(r => r.seats.some(s => s.seatNo === seat.seatNo));
-        if (!foundRoom) return;
-        setSelectedLocation({ branch: selectedBranch as 1 | 2, floor: selectedFloor, roomNo: foundRoom.roomNo, seatNo: seat.seatNo });
+
+        setSelectedLocation({
+            branch: selectedBranch as 1 | 2,
+            floor: selectedFloor,
+            roomNo: room.roomNo,
+            roomId: room.id,
+            seatNo: seat.seatNo
+        });
 
         // Update price based on selected room
         if (selectedSlot) {
             setSelectedSlot({
                 ...selectedSlot,
-                price: (foundRoom.price_daily || 50) * selectedSlot.durationDays
+                price: (room.price_daily || 50) * selectedSlot.durationDays
             });
         }
     };
@@ -217,14 +222,14 @@ const LocationSelectionPage: React.FC = () => {
                                                     gap: { xs: 1, md: 1.5 },
                                                 }}>
                                                     {room.seats.map((seat, i) => {
-                                                        const isSelected = selectedLocation?.seatNo === seat.seatNo;
+                                                        const isSelected = selectedLocation?.seatNo === seat.seatNo && selectedLocation?.roomId === room.id;
                                                         return (
                                                             <MotionBox
                                                                 key={seat.id}
                                                                 initial={{ opacity: 0, scale: 0.85 }}
                                                                 animate={{ opacity: 1, scale: 1 }}
                                                                 transition={{ delay: (ri * 10 + i) * 0.012, duration: 0.25 }}
-                                                                onClick={() => handleSeatSelect(seat)}
+                                                                onClick={() => handleSeatSelect(seat, room)}
                                                                 sx={{
                                                                     aspectRatio: '1',
                                                                     display: 'flex', alignItems: 'center', justifyContent: 'center',

@@ -146,6 +146,8 @@ export const uploadReceipt = async (file: File): Promise<string> => {
     return publicUrl;
 };
 
+
+
 export const getBranches = async (): Promise<Branch[]> => {
     if (!isSupabaseConfigured()) {
         await delay(400);
@@ -277,13 +279,27 @@ export const createBooking = async (details: BookingDetails): Promise<BookingRes
     if (floorError || !floorRow) throw new Error(`Floor not found for branch ${location.branch}, floor ${location.floor}`);
 
     // 2. Resolve Room
-    const { data: roomRow, error: roomError } = await supabase
-        .from('rooms')
-        .select('id')
-        .eq('floor_id', floorRow.id)
-        .eq('room_no', location.roomNo)
-        .maybeSingle();
-    if (roomError || !roomRow) throw new Error(`Room '${location.roomNo}' not found on floor ${location.floor}`);
+    let roomRow;
+    if (location.roomId) {
+        const { data, error } = await supabase
+            .from('rooms')
+            .select('id')
+            .eq('id', location.roomId)
+            .maybeSingle();
+        roomRow = data;
+        if (error) throw error;
+    }
+
+    if (!roomRow) {
+        const { data, error } = await supabase
+            .from('rooms')
+            .select('id')
+            .eq('floor_id', floorRow.id)
+            .eq('room_no', location.roomNo)
+            .maybeSingle();
+        roomRow = data;
+        if (error || !roomRow) throw new Error(`Room '${location.roomNo}' not found on floor ${location.floor}`);
+    }
 
     // 3. Resolve Seat
     const { data: seatRow, error: seatError } = await supabase
