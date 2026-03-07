@@ -105,8 +105,16 @@ const AdminLocations: React.FC = () => {
                 if (dialog.mode === 'add') await addFloor(selectedBranch!.id, formData);
                 else await updateFloor(selectedBranch!.id, dialog.data.floorNumber, formData);
             } else if (dialog.type === 'room') {
-                if (dialog.mode === 'add') await addRoom(selectedBranch!.id, selectedFloor!.floorNumber, formData);
-                else await updateRoom(selectedBranch!.id, selectedFloor!.floorNumber, dialog.data.id, formData);
+                const finalData = {
+                    ...formData,
+                    seatsFrom: parseInt(String(formData.seatsFrom)) || 1,
+                    seatsTo: parseInt(String(formData.seatsTo)) || 1,
+                };
+                if (finalData.seatsTo < finalData.seatsFrom) {
+                    throw new Error("'Seats To' cannot be less than 'Seats From'");
+                }
+                if (dialog.mode === 'add') await addRoom(selectedBranch!.id, selectedFloor!.floorNumber, finalData);
+                else await updateRoom(selectedBranch!.id, selectedFloor!.floorNumber, dialog.data.id, finalData);
             }
             await loadData();
             setDialog({ ...dialog, open: false });
@@ -310,7 +318,7 @@ const AdminLocations: React.FC = () => {
                                     </Box>
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
                                         {room.isAc && <Chip icon={<AcUnitIcon sx={{ fontSize: '14px !important' }} />} label="AC" size="small" color="info" variant="filled" />}
-                                        <Chip label={`₹${room.price_daily || 50}/day`} size="small" color="success" variant="outlined" />
+                                        <Chip label={`₹${room.price_daily || 0}/day`} size="small" color="success" variant="outlined" />
                                         <Chip icon={<ChairIcon sx={{ fontSize: '14px !important' }} />} label={`${room.seats.length} Seats`} size="small" variant="outlined" />
                                     </Box>
                                     <Divider sx={{ mb: 2 }} />
@@ -368,7 +376,7 @@ const LocationDialog: React.FC<LocationDialogProps> = ({ open, type, mode, data,
                 const seatNos = (data.seats || []).map((s: any) => parseInt(String(s.seatNo).replace(/\D/g, ''))).filter((n: any) => !isNaN(n));
                 const sFrom = seatNos.length > 0 ? Math.min(...seatNos) : 1;
                 const sTo = seatNos.length > 0 ? Math.max(...seatNos) : 10;
-                setFormData({ ...data, seatsCount: data.seats?.length || 0, seatsFrom: sFrom, seatsTo: sTo, price_daily: data.price_daily || 50, isAc: data.isAc || false, pricing_tiers: initialPricing });
+                setFormData({ ...data, seatsCount: data.seats?.length || 0, seatsFrom: sFrom, seatsTo: sTo, price_daily: data.price_daily || 0, isAc: data.isAc || false, pricing_tiers: initialPricing });
             }
             else setFormData(data);
         } else {
@@ -410,8 +418,8 @@ const LocationDialog: React.FC<LocationDialogProps> = ({ open, type, mode, data,
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
                         <TextField
                             label="Floor Number" type="number" fullWidth size="small"
-                            value={formData.floorNumber || 1}
-                            onChange={(e) => setFormData({ ...formData, floorNumber: parseInt(e.target.value) })}
+                            value={formData.floorNumber ?? ''}
+                            onChange={(e) => setFormData({ ...formData, floorNumber: e.target.value === '' ? '' : parseInt(e.target.value) })}
                         />
                     </Box>
                 )}
@@ -429,8 +437,8 @@ const LocationDialog: React.FC<LocationDialogProps> = ({ open, type, mode, data,
                         />
                         <TextField
                             label="Daily Price (₹)" type="number" fullWidth size="small"
-                            value={formData.price_daily || 50}
-                            onChange={(e) => setFormData({ ...formData, price_daily: parseInt(e.target.value) })}
+                            value={formData.price_daily ?? ''}
+                            onChange={(e) => setFormData({ ...formData, price_daily: e.target.value === '' ? '' : parseInt(e.target.value) })}
                         />
                         <FormControlLabel
                             control={<Switch checked={formData.isAc || false} onChange={e => setFormData({ ...formData, isAc: e.target.checked })} />}
@@ -439,13 +447,13 @@ const LocationDialog: React.FC<LocationDialogProps> = ({ open, type, mode, data,
                         <Box sx={{ display: 'flex', gap: 2 }}>
                             <TextField
                                 label="Seats From" type="number" fullWidth size="small"
-                                value={formData.seatsFrom || 1}
-                                onChange={(e) => setFormData({ ...formData, seatsFrom: parseInt(e.target.value) })}
+                                value={formData.seatsFrom ?? ''}
+                                onChange={(e) => setFormData({ ...formData, seatsFrom: e.target.value === '' ? '' : parseInt(e.target.value) })}
                             />
                             <TextField
                                 label="Seats To" type="number" fullWidth size="small"
-                                value={formData.seatsTo || 10}
-                                onChange={(e) => setFormData({ ...formData, seatsTo: parseInt(e.target.value) })}
+                                value={formData.seatsTo ?? ''}
+                                onChange={(e) => setFormData({ ...formData, seatsTo: e.target.value === '' ? '' : parseInt(e.target.value) })}
                             />
                         </Box>
                         <Typography variant="caption" color="text.secondary">
