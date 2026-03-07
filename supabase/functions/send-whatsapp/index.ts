@@ -9,21 +9,18 @@ serve(async (req) => {
     }
 
     try {
-        const { booking, template, phone, message: customText } = await req.json();
+        const { booking, template, phone, message: customText, locationText } = await req.json();
 
         let whatsappPayload;
 
         if (phone && customText) {
-            console.log(`Sending Broadcast to ${phone}`);
-            // Broadcast Mode (using a generic 'announcement' template with 1 variable, or fallback to text)
-            // Note: For production, you must use a pre-approved template for business-initiated messages.
-            // We serve a structure that uses a generic 'custom_alert' template assuming it takes 1 text parameter.
+            console.log(`Sending Broadcast/Custom to ${phone}`);
             whatsappPayload = {
                 messaging_product: "whatsapp",
                 to: phone,
                 type: "template",
                 template: {
-                    name: "custom_alert", // You would create this in Meta Manager
+                    name: template || "custom_alert",
                     language: { code: "en_US" },
                     components: [{
                         type: "body",
@@ -32,26 +29,43 @@ serve(async (req) => {
                 }
             };
         } else if (booking) {
-            console.log(`Sending Booking Confirmation to ${booking.customer_phone}`);
-            // Booking Mode
+            const customerPhone = phone || booking.customer_phone;
+            const templateName = template || (booking.status === 'confirmed' ? 'booking_confirmed' : 'booking_pending');
+            const locText = locationText || "AcumenHive Spot";
+
+            console.log(`Sending ${templateName} to ${customerPhone}`);
+
+            const bodyParams: any[] = [];
+
+            // Named Parameter Mapping for Meta Templates (Better for Utility Approval)
+            if (templateName === 'booking_confirmed') {
+                bodyParams.push({ type: "text", parameter_name: "name", text: booking.customer_name });
+                bodyParams.push({ type: "text", parameter_name: "location", text: locText });
+                bodyParams.push({ type: "text", parameter_name: "booking_id", text: booking.id });
+                bodyParams.push({ type: "text", parameter_name: "amount", text: booking.amount.toString() });
+            } else if (templateName === 'booking_pending' || templateName === 'booking_rejected' || templateName === 'admin_booking_alert') {
+                bodyParams.push({ type: "text", parameter_name: "name", text: booking.customer_name });
+                bodyParams.push({ type: "text", parameter_name: "location", text: locText });
+                bodyParams.push({ type: "text", parameter_name: "booking_id", text: booking.id });
+            } else {
+                // Fallback for custom or positional templates
+                bodyParams.push({ type: "text", text: booking.customer_name });
+                bodyParams.push({ type: "text", text: booking.id });
+                bodyParams.push({ type: "text", text: booking.start_date });
+                bodyParams.push({ type: "text", text: booking.amount.toString() });
+            }
+
             whatsappPayload = {
                 messaging_product: "whatsapp",
-                to: booking.customer_phone,
+                to: customerPhone,
                 type: "template",
                 template: {
-                    name: template || "booking_confirmation",
+                    name: templateName,
                     language: { code: "en_US" },
-                    components: [
-                        {
-                            type: "body",
-                            parameters: [
-                                { type: "text", text: booking.customer_name },
-                                { type: "text", text: booking.id },
-                                { type: "text", text: booking.start_date },
-                                { type: "text", text: booking.amount.toString() }
-                            ]
-                        }
-                    ]
+                    components: [{
+                        type: "body",
+                        parameters: bodyParams
+                    }]
                 }
             };
         } else {
@@ -95,9 +109,6 @@ serve(async (req) => {
             clearTimeout(timeoutId);
             throw err;
         }
-
-
-
     } catch (error) {
         return new Response(JSON.stringify({ error: error.message }), {
             status: 400,
