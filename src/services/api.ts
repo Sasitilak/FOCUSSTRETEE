@@ -226,6 +226,20 @@ export const getBranches = async (): Promise<Branch[]> => {
     }));
 };
 
+
+// Helper for location text formatting
+const formatLocationText = (booking: any) => {
+    try {
+        const b = booking.floors?.branches?.name || "AcumenHive Branch";
+        const f = booking.floors?.floor_number || "?";
+        const r = booking.seats?.rooms?.name || booking.seats?.rooms?.room_no || "?";
+        const s = booking.seats?.seat_no || "?";
+        return `${b}, Floor ${f}, ${r}, Seat ${s}`;
+    } catch {
+        return "AcumenHive Spot";
+    }
+};
+
 export const createBooking = async (details: BookingDetails): Promise<BookingResponse> => {
     if (!isSupabaseConfigured()) {
         await delay(800);
@@ -373,25 +387,29 @@ export const createBooking = async (details: BookingDetails): Promise<BookingRes
             payment_screenshot_url: details.paymentScreenshotUrl || null,
             status: 'pending',
         })
-        .select()
+        .select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))')
         .single();
 
     if (error) throw error;
 
-    return {
-        id: booking.id,
-        slotId: booking.slot_id,
-        slotTime: slotRow?.name || details.slotTime || '',
-        slotDate: booking.start_date,
-        location: details.location!,
-        customerName: booking.customer_name,
-        customerPhone: booking.customer_phone,
-        customerEmail: booking.customer_email ?? undefined,
-        amount: booking.amount,
-        status: booking.status,
-        paymentScreenshotUrl: booking.payment_screenshot_url ?? undefined,
-        createdAt: booking.created_at,
-    };
+    // Trigger WhatsApp: Pending for User & Alert for Admins
+    const locText = formatLocationText(booking);
+
+    // 1. Send PENDING to USER
+    supabase.functions.invoke('send-whatsapp', {
+        body: { booking, template: 'booking_pending', locationText: locText }
+    }).catch(e => console.error("WhatsApp Pending Notification failed:", e));
+
+    // 2. Fetch admins and notify them
+    supabase.from('admins').select('phone').then(({ data: admins }) => {
+        admins?.forEach(adm => {
+            supabase.functions.invoke('send-whatsapp', {
+                body: { booking, template: 'admin_booking_alert', phone: adm.phone, locationText: locText }
+            }).catch(e => console.error(`Admin Alert failed for ${adm.phone}:`, e));
+        });
+    });
+
+    return mapBookingRow(booking);
 };
 
 
@@ -455,13 +473,14 @@ export const createAdminBooking = async (details: Partial<BookingDetails>, locat
         end_date: endDate,
         status: 'confirmed',
         amount: details.amount || 0,
-    }).select().single();
+    }).select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))').single();
 
     if (error) throw error;
 
     // Trigger WhatsApp Notification (Edge Function) for Admin Booking
+    const locText = formatLocationText(data);
     supabase.functions.invoke('send-whatsapp', {
-        body: { booking: data, template: 'booking_confirmation' }
+        body: { booking: data, template: 'booking_confirmed', locationText: locText }
     }).then(({ error: waErr }) => {
         if (waErr) console.error("Admin Booking WhatsApp failed:", waErr);
     });
@@ -474,7 +493,7 @@ export const getBooking = async (id: string): Promise<BookingResponse | null> =>
         await delay(300);
         return mockBookings.find(b => b.id === id) ?? null;
     }
-    const { data, error } = await supabase.from('bookings').select('*, slots(name), floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))').eq('id', id).maybeSingle();
+    const { data, error } = await supabase.from('bookings').select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))').eq('id', id).maybeSingle();
     if (error) throw new Error(`getBooking: ${error.message}`);
     if (!data) return null;
     return mapBookingRow(data);
@@ -487,7 +506,7 @@ export const getAdminBookings = async (): Promise<BookingResponse[]> => {
 
     const { data, error } = await supabase
         .from('bookings')
-        .select('*, slots(name), floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))')
+        .select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))')
         .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -543,17 +562,17 @@ export const approveBooking = async (bookingId: string): Promise<BookingResponse
         .from('bookings')
         .update({ status: 'confirmed' })
         .eq('id', bookingId)
-        .select() // Select all fields to pass to edge function
+        .select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))') // Select relation data for template
         .single();
 
     if (error) throw error;
 
-    // Trigger WhatsApp Notification (Edge Function)
-    // We don't await this to keep UI responsive, or we can await if critical.
+    // Trigger WhatsApp Notification: CONFIRMED
+    const locText = formatLocationText(data);
     supabase.functions.invoke('send-whatsapp', {
-        body: { booking: data, template: 'booking_confirmation' }
+        body: { booking: data, template: 'booking_confirmed', locationText: locText }
     }).then(({ error }) => {
-        if (error) console.error("Failed to send WhatsApp:", error);
+        if (error) console.error("Failed to send WhatsApp Confirmation:", error);
     });
 
     return mapBookingRow(data);
@@ -571,10 +590,18 @@ export const rejectBooking = async (bookingId: string): Promise<BookingResponse>
         .from('bookings')
         .update({ status: 'rejected' })
         .eq('id', bookingId)
-        .select('*, slots(name), floors(floor_number), seats(seat_no)')
+        .select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))')
         .single();
 
     if (error) throw error;
+
+    // Trigger WhatsApp Notification: REJECTED
+    const locText = formatLocationText(data);
+    supabase.functions.invoke('send-whatsapp', {
+        body: { booking: data, template: 'booking_rejected', locationText: locText }
+    }).then(({ error }) => {
+        if (error) console.error("Failed to send WhatsApp Rejection:", error);
+    });
 
     // Automatically unblock the seat if rejected
     if (data?.seat_id) {
@@ -596,7 +623,7 @@ export const revokeBooking = async (bookingId: string): Promise<BookingResponse>
         .from('bookings')
         .update({ status: 'revoked' })
         .eq('id', bookingId)
-        .select('*, slots(name), floors(floor_number), seats(seat_no)')
+        .select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))')
         .single();
 
     if (error) throw error;
@@ -621,7 +648,7 @@ export const expireBooking = async (bookingId: string): Promise<BookingResponse>
         .from('bookings')
         .update({ status: 'expired' })
         .eq('id', bookingId)
-        .select('*, slots(name), floors(floor_number), seats(seat_no)')
+        .select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))')
         .single();
 
     if (error) throw error;
@@ -1385,15 +1412,25 @@ export const setMaintenanceMode = async (enabled: boolean) => {
 // ─── Helpers ─────────────────────────────────────────────────────
 
 function mapBookingRow(row: Record<string, unknown>): BookingResponse {
-    const slots = row.slots as Record<string, unknown> | null;
     const floors = row.floors as Record<string, unknown> | null;
     const branches = floors?.branches as Record<string, unknown> | null;
     const seats = row.seats as Record<string, unknown> | null;
     const rooms = seats?.rooms as Record<string, unknown> | null;
+
+    // Manual mapping for common durations since FK is removed for dynamic slots
+    const slotId = (row.slot_id as string) ?? 'admin';
+    let slotTime = 'Custom';
+
+    if (slotId === '1w') slotTime = '1 Week';
+    else if (slotId === '2w') slotTime = '2 Weeks';
+    else if (slotId === '3w') slotTime = '3 Weeks';
+    else if (slotId === '1m') slotTime = '1 Month';
+    else if (slotId.startsWith('slot-')) slotTime = 'Custom Duration';
+
     return {
         id: row.id as string,
-        slotId: (row.slot_id as string) ?? 'admin',
-        slotTime: (slots?.name ?? 'Custom') as string,
+        slotId: slotId,
+        slotTime: slotTime,
         slotDate: row.start_date as string,
         startDate: row.start_date as string,
         endDate: row.end_date as string,
