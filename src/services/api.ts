@@ -198,7 +198,7 @@ export const getBranches = async (): Promise<Branch[]> => {
     if (!branchData || !floorData || !roomData || !seatData) return [];
 
     return branchData.map(b => ({
-        id: b.id as 1 | 2,
+        id: b.id,
         name: b.name,
         address: b.address,
         floors: floorData
@@ -680,7 +680,7 @@ export const getAdminSeats = async (): Promise<any[]> => {
                         is_ac: r.isAc,
                         room_name: r.name,
                         room_no: r.roomNo,
-                        price_daily: r.price_daily || 50,
+                        price_daily: r.price_daily || 0,
                         pricing_tiers: r.pricing_tiers || { price_1w: 500, price_2w: 900, price_3w: 1200, price_1m: 1500 },
                     }))
                 )
@@ -753,7 +753,7 @@ export const getRoomLayout = async (roomId: string): Promise<{
     // Parse config entry (type='config')
     const configRow = rows.find((e: any) => e.type === 'config');
     const gridCols = configRow?.grid_col || 8;
-    const gridRows = configRow?.grid_row || 10;
+    const gridRows = configRow?.grid_row || 0;
 
     // Parse seat positions (type='seat', seat_id stored in 'side' column)
     const seatPositions: SeatPosition[] = rows
@@ -1044,7 +1044,7 @@ export const addRoom = async (branchId: number, floorNumber: number, room: Omit<
             room_no: room.roomNo,
             name: room.name,
             is_ac: room.isAc,
-            price_daily: room.price_daily || 50,
+            price_daily: room.price_daily || 0,
             seats_count: count,
             pricing_tiers: room.pricing_tiers || null
         })

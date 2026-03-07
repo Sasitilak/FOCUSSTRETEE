@@ -246,76 +246,111 @@ const LocationSelectionPage: React.FC = () => {
                                             const roomAvail = room.seats.filter(s => s.available).length;
                                             const isActive = selectedRoomId === room.id;
                                             return (
-                                                <MotionBox
-                                                    key={room.id}
-                                                    initial={{ opacity: 0, scale: 0.92 }}
-                                                    animate={{ opacity: 1, scale: 1 }}
-                                                    transition={{ delay: i * 0.06, duration: 0.3 }}
-                                                    onClick={() => handleRoomSelect(room)}
-                                                    sx={{
-                                                        flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(33% - 12px)' },
-                                                        p: 2, borderRadius: 3, cursor: 'pointer',
-                                                        border: '2px solid',
-                                                        borderColor: isActive ? 'primary.main' : theme.palette.divider,
-                                                        bgcolor: isActive
-                                                            ? (isDark ? 'rgba(0,173,181,0.08)' : 'rgba(59,172,182,0.06)')
-                                                            : 'background.paper',
-                                                        transition: 'all 0.25s ease',
-                                                        '&:hover': {
-                                                            borderColor: 'primary.light',
-                                                            transform: 'translateY(-2px)',
-                                                            boxShadow: `0 4px 16px ${theme.palette.primary.main}12`,
-                                                        },
-                                                        position: 'relative', overflow: 'hidden',
-                                                    }}
-                                                >
-                                                    {isActive && (
-                                                        <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: 'primary.main' }} />
-                                                    )}
-                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-                                                        <MeetingRoomIcon sx={{ color: isActive ? 'primary.main' : 'text.secondary', fontSize: 20 }} />
-                                                        <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: '0.85rem' }}>
-                                                            {room.name}
-                                                        </Typography>
-                                                    </Box>
-                                                    <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-                                                        {room.isAc && (
+                                                <React.Fragment key={room.id}>
+                                                    <MotionBox
+                                                        initial={{ opacity: 0, scale: 0.92 }}
+                                                        animate={{ opacity: 1, scale: 1 }}
+                                                        transition={{ delay: i * 0.06, duration: 0.3 }}
+                                                        onClick={() => handleRoomSelect(room)}
+                                                        sx={{
+                                                            flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(33% - 12px)' },
+                                                            p: 2, borderRadius: 3, cursor: 'pointer',
+                                                            border: '2px solid',
+                                                            borderColor: isActive ? 'primary.main' : theme.palette.divider,
+                                                            bgcolor: isActive
+                                                                ? (isDark ? 'rgba(0,173,181,0.08)' : 'rgba(59,172,182,0.06)')
+                                                                : 'background.paper',
+                                                            transition: 'all 0.25s ease',
+                                                            '&:hover': {
+                                                                borderColor: 'primary.light',
+                                                                transform: 'translateY(-2px)',
+                                                                boxShadow: `0 4px 16px ${theme.palette.primary.main}12`,
+                                                            },
+                                                            position: 'relative', overflow: 'hidden',
+                                                        }}
+                                                    >
+                                                        {isActive && (
+                                                            <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, bgcolor: 'primary.main' }} />
+                                                        )}
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                                                            <MeetingRoomIcon sx={{ color: isActive ? 'primary.main' : 'text.secondary', fontSize: 20 }} />
+                                                            <Typography variant="subtitle2" fontWeight={700} sx={{ fontSize: '0.85rem' }}>
+                                                                {room.name}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+                                                            {room.isAc && (
+                                                                <Chip
+                                                                    icon={<AcUnitIcon sx={{ fontSize: '12px !important' }} />}
+                                                                    label="AC"
+                                                                    size="small"
+                                                                    color="info"
+                                                                    variant="outlined"
+                                                                    sx={{ fontSize: '0.65rem', height: 20 }}
+                                                                />
+                                                            )}
+                                                            {(() => {
+                                                                const effectiveWeeks = selectedSlot?.effectiveWeeks || Math.ceil((selectedSlot?.durationDays || 7) / 7);
+                                                                const tiers = room.pricing_tiers;
+                                                                if (!tiers || !tiers.price_1w) return null;
+                                                                const p = calculatePrice(effectiveWeeks, tiers);
+                                                                return <Chip label={`₹${p.total}`} size="small" color="success" variant="filled" sx={{ fontSize: '0.65rem', height: 20, fontWeight: 700 }} />;
+                                                            })()}
                                                             <Chip
-                                                                icon={<AcUnitIcon sx={{ fontSize: '12px !important' }} />}
-                                                                label="AC"
+                                                                icon={<ChairIcon sx={{ fontSize: '12px !important' }} />}
+                                                                label={`${roomAvail}/${room.seats.length}`}
                                                                 size="small"
-                                                                color="info"
+                                                                color={roomAvail > 0 ? 'success' : 'error'}
                                                                 variant="outlined"
                                                                 sx={{ fontSize: '0.65rem', height: 20 }}
                                                             />
+                                                        </Box>
+                                                    </MotionBox>
+
+                                                    {/* Inline Seat Map: Shows directly following the clicked room card */}
+                                                    <AnimatePresence>
+                                                        {isActive && (
+                                                            <MotionBox
+                                                                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                                animate={{ opacity: 1, height: 'auto', marginTop: 16 }}
+                                                                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                                                                sx={{ width: '100%', overflow: 'hidden' }}
+                                                            >
+                                                                <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, border: `1.5px solid ${theme.palette.primary.main}30`, bgcolor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.01)' }}>
+                                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                                                                        <Typography variant="subtitle2" fontWeight={700}>Select a Seat in {room.name}</Typography>
+                                                                        <Chip label={`${roomAvail} available`} size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />
+                                                                    </Box>
+
+                                                                    <RoomSeatMap
+                                                                        room={room}
+                                                                        gridCols={layoutGridCols}
+                                                                        gridRows={layoutGridRows}
+                                                                        seatPositions={seatPositions}
+                                                                        elements={roomElements}
+                                                                        selectedSeatId={selectedLocation && selectedLocation.roomId === room.id ? room.seats.find(s => s.seatNo === selectedLocation.seatNo)?.id : undefined}
+                                                                        onSeatClick={handleSeatSelect}
+                                                                    />
+
+                                                                    <Box sx={{ mt: 2.5, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, border: '2px solid', borderColor: 'primary.main', bgcolor: 'primary.main', opacity: 0.2 }} />
+                                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Selected</Typography>
+                                                                        </Box>
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, border: '1px solid', borderColor: theme.palette.divider }} />
+                                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Available</Typography>
+                                                                        </Box>
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: theme.palette.divider, opacity: 0.3 }} />
+                                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Occupied</Typography>
+                                                                        </Box>
+                                                                    </Box>
+                                                                </Paper>
+                                                            </MotionBox>
                                                         )}
-                                                        {(() => {
-                                                            const effectiveWeeks = selectedSlot?.effectiveWeeks || Math.ceil((selectedSlot?.durationDays || 7) / 7);
-                                                            const tiers = room.pricing_tiers;
-                                                            if (!tiers || !tiers.price_1w) return null;
-                                                            const p = calculatePrice(effectiveWeeks, tiers);
-                                                            return <Chip label={`₹${p.total}`} size="small" color="success" variant="filled" sx={{ fontSize: '0.65rem', height: 20, fontWeight: 700 }} />;
-                                                        })()}
-                                                        <Chip
-                                                            icon={<ChairIcon sx={{ fontSize: '12px !important' }} />}
-                                                            label={`${roomAvail}/${room.seats.length}`}
-                                                            size="small"
-                                                            color={roomAvail > 0 ? 'success' : 'error'}
-                                                            variant="outlined"
-                                                            sx={{ fontSize: '0.65rem', height: 20 }}
-                                                        />
-                                                        {room.isAc && (
-                                                            <Chip
-                                                                icon={<AcUnitIcon sx={{ fontSize: 12 }} />}
-                                                                label="AC"
-                                                                size="small"
-                                                                variant="outlined"
-                                                                color="info"
-                                                                sx={{ fontSize: '0.65rem', height: 20 }}
-                                                            />
-                                                        )}
-                                                    </Box>
-                                                </MotionBox>
+                                                    </AnimatePresence>
+                                                </React.Fragment>
                                             );
                                         })}
                                     </Box>
@@ -323,103 +358,71 @@ const LocationSelectionPage: React.FC = () => {
                             </motion.div>
                         )}
                     </AnimatePresence>
-
-                    {/* ── STEP 4: Seat Map ── */}
-                    <AnimatePresence mode="wait">
-                        {selectedRoomId && curRoom && (
-                            <motion.div
-                                key={`seats-${selectedRoomId}`}
-                                initial={{ opacity: 0, y: 16 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -8 }}
-                                transition={{ duration: 0.35 }}
-                            >
-                                <Paper elevation={0} sx={{ mt: 3, p: { xs: 2, md: 3 }, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                                        <Box>
-                                            <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1.5, fontWeight: 600, fontSize: '0.65rem' }}>Step 4</Typography>
-                                            <Typography variant="subtitle1" fontWeight={600}>Pick Your Seat</Typography>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                                            <Chip
-                                                icon={<ChairIcon sx={{ fontSize: '14px !important' }} />}
-                                                label={`${curRoom.seats.filter(s => s.available).length} available`}
-                                                color="success" size="small" variant="outlined"
-                                                sx={{ height: 24, fontSize: '0.72rem' }}
-                                            />
-                                        </Box>
-                                    </Box>
-
-                                    <RoomSeatMap
-                                        room={curRoom}
-                                        gridCols={layoutGridCols}
-                                        gridRows={layoutGridRows}
-                                        seatPositions={seatPositions}
-                                        elements={roomElements}
-                                        selectedSeatId={selectedLocation ? curRoom.seats.find(s => s.seatNo === selectedLocation.seatNo)?.id : undefined}
-                                        onSeatClick={handleSeatSelect}
-                                    />
-
-                                    {/* Legend */}
-                                    <Box sx={{ mt: 2, display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Box sx={{ width: 12, height: 12, borderRadius: 0.5, border: '2px solid', borderColor: 'primary.main', bgcolor: isDark ? 'rgba(0,173,181,0.12)' : 'rgba(59,172,182,0.12)' }} />
-                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Selected</Typography>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Box sx={{ width: 12, height: 12, borderRadius: 0.5, border: '1.5px solid', borderColor: isDark ? 'rgba(0,173,181,0.3)' : 'rgba(59,172,182,0.25)' }} />
-                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Available</Typography>
-                                        </Box>
-                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                            <Box sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)', opacity: 0.3 }} />
-                                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.65rem' }}>Occupied</Typography>
-                                        </Box>
-                                    </Box>
-                                </Paper>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-
                 </Box>
 
                 {/* Right: Booking Summary — hidden on mobile, sticky sidebar on desktop */}
                 <Box sx={{
                     display: { xs: 'none', md: 'block' },
-                    width: 300, flexShrink: 0,
+                    width: 320, flexShrink: 0,
                 }}>
                     <Box sx={{ position: 'sticky', top: 80 }}>
                         <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.4 }}>
                             <BookingSummary />
+                            {selectedLocation && (
+                                <Box sx={{ mt: 2 }}>
+                                    <Button
+                                        variant="contained" fullWidth size="large"
+                                        onClick={() => navigate('/details')}
+                                        endIcon={<ArrowForwardIcon />}
+                                        sx={{ py: 1.5, borderRadius: 2, fontWeight: 700 }}
+                                    >
+                                        Continue to Details
+                                    </Button>
+                                </Box>
+                            )}
                         </motion.div>
                     </Box>
                 </Box>
             </Box>
 
             {/* Mobile summary — shown below */}
-            <Box sx={{ mt: 3, display: { xs: 'block', md: 'none' } }}>
+            <Box sx={{ mt: 3, display: { xs: 'block', md: 'none' }, mb: selectedLocation ? 12 : 4 }}>
                 <BookingSummary />
             </Box>
 
-            {/* Continue */}
+            {/* Floating Action Button for Booking (Mobile Only) */}
             <AnimatePresence>
                 {selectedLocation && (
-                    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 16 }} transition={{ duration: 0.3 }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mt: 4, mb: 2 }}>
-
-                            <Button
-                                variant="contained" size="large" fullWidth
-                                onClick={async () => {
-                                    if (selectedLocation) {
-                                        navigate('/details');
-                                    }
-                                }}
-                                endIcon={<ArrowForwardIcon />}
-                                sx={{ maxWidth: 400, py: 1.5 }}
-                            >
-                                Continue to Details
-                            </Button>
-                        </Box>
-                    </motion.div>
+                    <MotionBox
+                        initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                        sx={{
+                            position: 'fixed',
+                            bottom: 24,
+                            left: '5%',
+                            right: '5%',
+                            zIndex: 1100,
+                            display: { xs: 'block', md: 'none' }
+                        }}
+                    >
+                        <Button
+                            variant="contained" size="large" fullWidth
+                            onClick={() => navigate('/details')}
+                            endIcon={<ArrowForwardIcon />}
+                            sx={{
+                                py: 2,
+                                borderRadius: 100,
+                                fontSize: '1rem',
+                                fontWeight: 800,
+                                boxShadow: `0 12px 32px ${theme.palette.primary.main}60`,
+                                textTransform: 'none',
+                                background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+                            }}
+                        >
+                            Confirm Seat {selectedLocation.seatNo}
+                        </Button>
+                    </MotionBox>
                 )}
             </AnimatePresence>
         </Container>
