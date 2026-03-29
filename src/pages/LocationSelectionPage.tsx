@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Container, Typography, Button, Chip, Paper, Skeleton, useTheme
+    Box, Container, Typography, Button, Chip, Paper, Skeleton, CircularProgress, useTheme
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,10 +12,10 @@ import AcUnitIcon from '@mui/icons-material/AcUnit';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import BookingSummary from '../components/BookingSummary';
 import RoomSeatMap from '../components/RoomSeatMap';
-import { getBranches, getRoomLayout } from '../services/api';
+import { getBranches, getRoomLayoutsBatch, type RoomLayoutData } from '../services/api';
 import { useBooking } from '../context/BookingContext';
 import { calculatePrice } from '../utils/pricing';
-import type { Branch, Room, Seat, RoomElement, SeatPosition, PricingConfig } from '../types/booking';
+import type { Branch, Room, Seat, PricingConfig } from '../types/booking';
 
 const MotionBox = motion.create(Box);
 
@@ -30,11 +30,8 @@ const LocationSelectionPage: React.FC = () => {
     const [selectedBranch, setSelectedBranch] = useState<number | null>(selectedLocation?.branch ?? null);
     const [selectedFloor, setSelectedFloor] = useState<number | null>(selectedLocation?.floor ?? null);
     const [selectedRoomId, setSelectedRoomId] = useState<string | null>(selectedLocation?.roomId ?? null);
-    const [roomElements, setRoomElements] = useState<RoomElement[]>([]);
-    const [seatPositions, setSeatPositions] = useState<SeatPosition[]>([]);
-    const [layoutGridCols, setLayoutGridCols] = useState(8);
-    const [layoutGridRows, setLayoutGridRows] = useState(10);
-    // Unused state removed for lint compliance
+    const [floorLayoutCache, setFloorLayoutCache] = useState<Map<string, RoomLayoutData>>(new Map());
+    const [layoutLoading, setLayoutLoading] = useState(false);
 
     useEffect(() => {
         if (!selectedSlot) { navigate('/slots'); return; }
@@ -51,39 +48,39 @@ const LocationSelectionPage: React.FC = () => {
         fetchBranches();
     }, [selectedSlot, navigate]);
 
-    // Load room layout when a room is selected
-    useEffect(() => {
-        if (!selectedRoomId) { setRoomElements([]); setSeatPositions([]); return; }
-        getRoomLayout(selectedRoomId)
-            .then(layout => {
-                setRoomElements(layout.elements);
-                setSeatPositions(layout.seatPositions);
-                setLayoutGridCols(layout.gridCols);
-                setLayoutGridRows(layout.gridRows);
-            })
-            .catch(err => console.error('Failed to load room layout:', err));
-    }, [selectedRoomId]);
-
     const curBranch = branches.find(b => b.id === selectedBranch);
     const curFloor = curBranch?.floors.find(f => f.floorNumber === selectedFloor);
     const curRoom = curFloor?.rooms.find(r => r.id === selectedRoomId);
 
     const handleBranchSelect = (id: number) => {
         setSelectedBranch(id); setSelectedFloor(null); setSelectedRoomId(null); setSelectedLocation(null);
+        setFloorLayoutCache(new Map());
         if (selectedSlot) setSelectedSlot({ ...selectedSlot, price: 0 });
     };
+
     const handleFloorSelect = (num: number) => {
         setSelectedFloor(num); setSelectedRoomId(null); setSelectedLocation(null);
         if (selectedSlot) setSelectedSlot({ ...selectedSlot, price: 0 });
+
+        const floor = curBranch?.floors.find(f => f.floorNumber === num);
+        if (floor && floor.rooms.length > 0) {
+            setLayoutLoading(true);
+            const roomIds = floor.rooms.map(r => r.id);
+            getRoomLayoutsBatch(roomIds)
+                .then(cache => setFloorLayoutCache(cache))
+                .catch(err => console.error('Failed to load floor layouts:', err))
+                .finally(() => setLayoutLoading(false));
+        }
     };
+
     const handleRoomSelect = (room: Room) => {
         setSelectedRoomId(room.id); setSelectedLocation(null);
         if (selectedSlot) setSelectedSlot({ ...selectedSlot, price: 0 });
     };
+
     const handleSeatSelect = (seat: Seat) => {
         if (!seat.available || !selectedBranch || !selectedFloor || !curRoom) return;
 
-        // Calculate final price based on this specific room's exact 4-tier pricing
         const days = selectedSlot?.durationDays || 7;
         const weeks = selectedSlot?.effectiveWeeks || Math.ceil(days / 7);
         const tiers: PricingConfig = curRoom.pricing_tiers || {
@@ -91,12 +88,8 @@ const LocationSelectionPage: React.FC = () => {
         };
         const { total: totalPrice } = calculatePrice(weeks, tiers);
 
-        // Update Slot/Price in context
         if (selectedSlot) {
-            setSelectedSlot({
-                ...selectedSlot,
-                price: totalPrice
-            });
+            setSelectedSlot({ ...selectedSlot, price: totalPrice });
         }
 
         const branchObj = branches.find(b => b.id === selectedBranch);
@@ -109,8 +102,6 @@ const LocationSelectionPage: React.FC = () => {
             seatNo: seat.seatNo
         });
     };
-
-
 
     if (loading) return (
         <Container maxWidth="lg" sx={{ py: 4, px: { xs: 2, md: 4 } }}>
@@ -131,12 +122,12 @@ const LocationSelectionPage: React.FC = () => {
                 </motion.div>
             </Box>
 
-            {/* Main layout — content left, summary right on desktop */}
+            {/* Main layout */}
             <Box sx={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
                 {/* Left: Selection steps */}
                 <Box sx={{ flex: 1, minWidth: 0 }}>
 
-                    {/* ── STEP 1: Branch cards ── */}
+                    {/* ── STEP 1: Branch ── */}
                     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1, duration: 0.4 }}>
                         <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1.5, fontWeight: 600, fontSize: '0.65rem' }}>Step 1</Typography>
                         <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1.5 }}>Choose Branch</Typography>
@@ -182,7 +173,7 @@ const LocationSelectionPage: React.FC = () => {
                         </Box>
                     </motion.div>
 
-                    {/* ── STEP 2: Floor Tabs ── */}
+                    {/* ── STEP 2: Floor ── */}
                     <AnimatePresence mode="wait">
                         {selectedBranch && curBranch && (
                             <motion.div
@@ -228,7 +219,7 @@ const LocationSelectionPage: React.FC = () => {
                         )}
                     </AnimatePresence>
 
-                    {/* ── STEP 3: Room Selection Cards ── */}
+                    {/* ── STEP 3: Room + Inline Seat Map ── */}
                     <AnimatePresence mode="wait">
                         {selectedFloor && curFloor && (
                             <motion.div
@@ -307,7 +298,7 @@ const LocationSelectionPage: React.FC = () => {
                                                         </Box>
                                                     </MotionBox>
 
-                                                    {/* Inline Seat Map: Shows directly following the clicked room card */}
+                                                    {/* Inline Seat Map */}
                                                     <AnimatePresence>
                                                         {isActive && (
                                                             <MotionBox
@@ -322,15 +313,21 @@ const LocationSelectionPage: React.FC = () => {
                                                                         <Chip label={`${roomAvail} available`} size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />
                                                                     </Box>
 
-                                                                    <RoomSeatMap
-                                                                        room={room}
-                                                                        gridCols={layoutGridCols}
-                                                                        gridRows={layoutGridRows}
-                                                                        seatPositions={seatPositions}
-                                                                        elements={roomElements}
-                                                                        selectedSeatId={selectedLocation && selectedLocation.roomId === room.id ? room.seats.find(s => s.seatNo === selectedLocation.seatNo)?.id : undefined}
-                                                                        onSeatClick={handleSeatSelect}
-                                                                    />
+                                                                    {layoutLoading ? (
+                                                                        <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                                                                            <CircularProgress size={28} />
+                                                                        </Box>
+                                                                    ) : (
+                                                                        <RoomSeatMap
+                                                                            room={room}
+                                                                            gridCols={floorLayoutCache.get(room.id)?.gridCols ?? 8}
+                                                                            gridRows={floorLayoutCache.get(room.id)?.gridRows ?? 10}
+                                                                            seatPositions={floorLayoutCache.get(room.id)?.seatPositions ?? []}
+                                                                            elements={floorLayoutCache.get(room.id)?.elements ?? []}
+                                                                            selectedSeatId={selectedLocation && selectedLocation.roomId === room.id ? room.seats.find(s => s.seatNo === selectedLocation.seatNo)?.id : undefined}
+                                                                            onSeatClick={handleSeatSelect}
+                                                                        />
+                                                                    )}
 
                                                                     <Box sx={{ mt: 2.5, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -360,11 +357,8 @@ const LocationSelectionPage: React.FC = () => {
                     </AnimatePresence>
                 </Box>
 
-                {/* Right: Booking Summary — hidden on mobile, sticky sidebar on desktop */}
-                <Box sx={{
-                    display: { xs: 'none', md: 'block' },
-                    width: 320, flexShrink: 0,
-                }}>
+                {/* Right: Booking Summary sticky sidebar (desktop only) */}
+                <Box sx={{ display: { xs: 'none', md: 'block' }, width: 320, flexShrink: 0 }}>
                     <Box sx={{ position: 'sticky', top: 80 }}>
                         <motion.div initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3, duration: 0.4 }}>
                             <BookingSummary />
@@ -385,36 +379,26 @@ const LocationSelectionPage: React.FC = () => {
                 </Box>
             </Box>
 
-            {/* Mobile summary — shown below */}
+            {/* Mobile summary */}
             <Box sx={{ mt: 3, display: { xs: 'block', md: 'none' }, mb: selectedLocation ? 12 : 4 }}>
                 <BookingSummary />
             </Box>
 
-            {/* Floating Action Button for Booking (Mobile Only) */}
+            {/* Floating CTA (mobile only) */}
             <AnimatePresence>
                 {selectedLocation && (
                     <MotionBox
                         initial={{ opacity: 0, scale: 0.8, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.8, y: 20 }}
-                        sx={{
-                            position: 'fixed',
-                            bottom: 24,
-                            left: '5%',
-                            right: '5%',
-                            zIndex: 1100,
-                            display: { xs: 'block', md: 'none' }
-                        }}
+                        sx={{ position: 'fixed', bottom: 24, left: '5%', right: '5%', zIndex: 1100, display: { xs: 'block', md: 'none' } }}
                     >
                         <Button
                             variant="contained" size="large" fullWidth
                             onClick={() => navigate('/details')}
                             endIcon={<ArrowForwardIcon />}
                             sx={{
-                                py: 2,
-                                borderRadius: 100,
-                                fontSize: '1rem',
-                                fontWeight: 800,
+                                py: 2, borderRadius: 100, fontSize: '1rem', fontWeight: 800,
                                 boxShadow: `0 12px 32px ${theme.palette.primary.main}60`,
                                 textTransform: 'none',
                                 background: `linear-gradient(135deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,

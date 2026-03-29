@@ -779,6 +779,51 @@ export const getRoomLayout = async (roomId: string): Promise<{
     return { gridCols, gridRows, seatPositions, elements };
 };
 
+export type RoomLayoutData = {
+    gridCols: number;
+    gridRows: number;
+    seatPositions: SeatPosition[];
+    elements: RoomElement[];
+};
+
+export const getRoomLayoutsBatch = async (roomIds: string[]): Promise<Map<string, RoomLayoutData>> => {
+    const result = new Map<string, RoomLayoutData>();
+    if (roomIds.length === 0) return result;
+
+    if (!isSupabaseConfigured()) {
+        await delay(300);
+        roomIds.forEach(id => result.set(id, { gridCols: 8, gridRows: 10, seatPositions: [], elements: [] }));
+        return result;
+    }
+
+    const { data, error } = await supabase
+        .from('room_elements')
+        .select('*')
+        .in('room_id', roomIds);
+    if (error) throw error;
+
+    const rows = data || [];
+
+    roomIds.forEach(roomId => {
+        const roomRows = rows.filter((e: any) => e.room_id === roomId);
+        const configRow = roomRows.find((e: any) => e.type === 'config');
+        const gridCols = configRow?.grid_col || 8;
+        const gridRows = configRow?.grid_row || 0;
+
+        const seatPositions: SeatPosition[] = roomRows
+            .filter((e: any) => e.type === 'seat')
+            .map((e: any) => ({ seatId: e.side, gridRow: e.grid_row, gridCol: e.grid_col }));
+
+        const elements: RoomElement[] = roomRows
+            .filter((e: any) => e.type === 'wall' || e.type === 'entrance')
+            .map((e: any) => ({ id: e.id, roomId: e.room_id, type: e.type, gridRow: e.grid_row, gridCol: e.grid_col, side: e.side }));
+
+        result.set(roomId, { gridCols, gridRows, seatPositions, elements });
+    });
+
+    return result;
+};
+
 export const saveRoomLayout = async (
     roomId: string,
     gridCols: number,

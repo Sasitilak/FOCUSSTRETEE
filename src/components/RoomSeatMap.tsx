@@ -82,21 +82,26 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
         return style;
     };
 
-    // ── Dynamic cell size based on grid size ──
-    const totalCells = gridRows * gridCols;
-    const cellSize = totalCells > 100 ? 48 : totalCells > 60 ? 56 : totalCells > 30 ? 64 : 72;
-
     // Check if layout has any positioned seats
     const hasLayout = seatPositions.length > 0;
 
     if (!hasLayout) {
-        // Fallback: simple flat grid
+        // Fallback: flat grid — styled to match admin layout
+        const fallbackCols = Math.min(Math.ceil(Math.sqrt(room.seats.length * 1.5)), 10);
         return (
-            <Box sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(auto-fill, minmax(52px, 1fr))', md: 'repeat(auto-fill, minmax(60px, 1fr))' },
-                gap: 1,
-            }}>
+            <Box
+                sx={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${fallbackCols}, minmax(48px, 64px))`,
+                    gap: '1px',
+                    border: `2px solid ${theme.palette.text.primary}`,
+                    borderRadius: 1,
+                    p: '1px',
+                    bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(245,222,179,0.3)',
+                    width: 'fit-content',
+                    mx: 'auto',
+                }}
+            >
                 {room.seats.map((seat, i) => {
                     const isSelected = selectedSeatId === seat.id;
                     return (
@@ -107,40 +112,36 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
                             transition={{ delay: i * 0.012, duration: 0.2 }}
                             onClick={() => seat.available && onSeatClick(seat)}
                             sx={{
-                                aspectRatio: '1',
+                                width: 56, height: 56,
                                 display: 'flex', flexDirection: 'column',
                                 alignItems: 'center', justifyContent: 'center',
-                                borderRadius: 2,
-                                cursor: seat.available ? 'pointer' : 'not-allowed',
-                                opacity: seat.available ? 1 : 0.3,
-                                border: '2px solid',
-                                borderColor: isSelected ? 'primary.main' : seat.available
-                                    ? (isDark ? 'rgba(0,173,181,0.35)' : 'rgba(59,172,182,0.3)')
-                                    : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'),
+                                cursor: seat.available ? 'pointer' : 'default',
                                 bgcolor: isSelected
-                                    ? (isDark ? 'rgba(0,173,181,0.2)' : 'rgba(59,172,182,0.15)')
+                                    ? (isDark ? 'rgba(46,204,113,0.2)' : 'rgba(46,204,113,0.15)')
                                     : seat.available
-                                        ? (isDark ? 'rgba(0,173,181,0.06)' : 'rgba(59,172,182,0.04)')
-                                        : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
-                                boxShadow: isSelected ? `0 0 10px ${theme.palette.primary.main}30` : 'none',
-                                transition: 'all 0.2s ease',
+                                        ? (isDark ? 'rgba(0,173,181,0.2)' : 'rgba(59,172,182,0.15)')
+                                        : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'),
+                                border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                                opacity: seat.available ? 1 : 0.35,
+                                transition: 'all 0.15s ease',
                                 '&:hover': seat.available ? {
-                                    transform: 'scale(1.06)',
-                                    borderColor: 'primary.main',
-                                    boxShadow: `0 4px 12px ${theme.palette.primary.main}20`,
+                                    bgcolor: isDark ? 'rgba(0,173,181,0.3)' : 'rgba(59,172,182,0.25)',
                                 } : {},
                             }}
                         >
                             <ChairIcon sx={{
-                                fontSize: 16, mb: '2px',
-                                color: isSelected ? 'primary.main' : seat.available ? 'primary.light' : 'text.disabled',
+                                fontSize: 16,
+                                color: isSelected ? '#2ecc71' : 'primary.main',
+                                display: 'block',
+                                mx: 'auto',
                             }} />
                             <Typography
+                                variant="caption"
                                 sx={{
-                                    fontSize: '0.7rem',
-                                    fontWeight: isSelected ? 800 : 600,
-                                    color: isSelected ? 'primary.main' : 'text.primary',
+                                    fontSize: '0.65rem',
+                                    fontWeight: 700,
                                     lineHeight: 1,
+                                    color: isSelected ? '#2ecc71' : seat.available ? 'text.primary' : 'text.disabled',
                                 }}
                             >
                                 {seat.seatNo}
@@ -152,20 +153,21 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
         );
     }
 
-    // ── Visual Layout mode (auto-cropped) ──
+    // ── Visual Layout mode ──
     return (
         <Box sx={{ overflowX: 'auto', pb: 1 }}>
             <Box
                 sx={{
                     display: 'grid',
-                    gridTemplateColumns: `repeat(${gridCols}, ${cellSize}px)`,
-                    gridTemplateRows: `repeat(${gridRows}, ${cellSize}px)`,
-                    gap: 0,
+                    gridTemplateColumns: `repeat(${gridCols}, minmax(48px, 64px))`,
+                    gridTemplateRows: `repeat(${gridRows}, minmax(48px, 64px))`,
+                    gap: '1px',
                     mx: 'auto',
                     width: 'fit-content',
-                    border: `2px solid ${isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)'}`,
-                    borderRadius: 2,
-                    overflow: 'hidden',
+                    border: `2px solid ${theme.palette.text.primary}`,
+                    borderRadius: 1,
+                    p: '1px',
+                    bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(245,222,179,0.3)',
                 }}
             >
                 {Array.from({ length: gridRows }).map((_, row) =>
@@ -187,64 +189,37 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     cursor: seat?.available ? 'pointer' : 'default',
-                                    // Grid lines
-                                    borderRight: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
-                                    borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)'}`,
+                                    bgcolor: isSelected
+                                        ? (isDark ? 'rgba(46,204,113,0.2)' : 'rgba(46,204,113,0.15)')
+                                        : seat
+                                            ? seat.available
+                                                ? (isDark ? 'rgba(0,173,181,0.2)' : 'rgba(59,172,182,0.15)')
+                                                : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)')
+                                            : 'transparent',
+                                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
                                     // Override with wall/entrance borders
                                     ...borders,
                                     transition: 'all 0.15s ease',
+                                    '&:hover': seat?.available ? {
+                                        bgcolor: isDark ? 'rgba(0,173,181,0.3)' : 'rgba(59,172,182,0.25)',
+                                    } : {},
                                 }}
                             >
                                 {seat && (
-                                    <Box
-                                        sx={{
-                                            width: `${cellSize - 8}px`,
-                                            height: `${cellSize - 8}px`,
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            borderRadius: 1.5,
-                                            p: '4px',
-                                            cursor: seat.available ? 'pointer' : 'not-allowed',
-                                            opacity: seat.available ? 1 : 0.4,
-                                            bgcolor: isSelected
-                                                ? (isDark ? 'rgba(46,204,113,0.35)' : 'rgba(46,204,113,0.25)')
-                                                : seat.available
-                                                    ? (isDark ? 'rgba(52,152,219,0.25)' : 'rgba(52,152,219,0.15)')
-                                                    : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'),
-                                            border: `2px solid ${isSelected
-                                                ? '#2ecc71'
-                                                : seat.available
-                                                    ? (isDark ? 'rgba(52,152,219,0.7)' : 'rgba(52,152,219,0.6)')
-                                                    : (isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)')
-                                                }`,
-                                            boxShadow: isSelected
-                                                ? '0 0 16px rgba(46,204,113,0.5), 0 0 6px rgba(46,204,113,0.3)'
-                                                : seat.available
-                                                    ? '0 1px 4px rgba(52,152,219,0.15)'
-                                                    : 'none',
-                                            transition: 'all 0.2s ease',
-                                            '&:hover': seat.available ? {
-                                                transform: 'scale(1.08)',
-                                                bgcolor: isDark ? 'rgba(52,152,219,0.35)' : 'rgba(52,152,219,0.22)',
-                                                borderColor: '#3498db',
-                                                boxShadow: '0 4px 16px rgba(52,152,219,0.35)',
-                                            } : {},
-                                        }}
-                                    >
+                                    <Box sx={{ textAlign: 'center', opacity: seat.available ? 1 : 0.35 }}>
                                         <ChairIcon sx={{
-                                            fontSize: cellSize > 44 ? 18 : 15,
-                                            color: isSelected ? '#2ecc71' : seat.available ? '#3498db' : (isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)'),
-                                            mb: '2px',
+                                            fontSize: 16,
+                                            color: isSelected ? '#2ecc71' : 'primary.main',
+                                            display: 'block',
+                                            mx: 'auto',
                                         }} />
                                         <Typography
+                                            variant="caption"
                                             sx={{
-                                                fontSize: cellSize > 44 ? '0.68rem' : '0.58rem',
-                                                fontWeight: 800,
+                                                fontSize: '0.65rem',
+                                                fontWeight: 700,
                                                 lineHeight: 1,
-                                                color: isSelected ? '#2ecc71' : seat.available ? (isDark ? '#fff' : '#2c3e50') : 'text.disabled',
-                                                letterSpacing: '0.03em',
+                                                color: isSelected ? '#2ecc71' : seat.available ? 'text.primary' : 'text.disabled',
                                             }}
                                         >
                                             {seat.seatNo}
