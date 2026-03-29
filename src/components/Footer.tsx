@@ -65,7 +65,7 @@ const Footer: React.FC = () => {
                                 <PhoneIcon sx={{ fontSize: 20, color: 'primary.main', mt: 0.2 }} />
                                 <Box>
                                     <Typography variant="body2" fontWeight={500}>For any queries, refunds, or support, please contact:</Typography>
-                                    <Typography variant="h6" color="primary.main" fontWeight={700} sx={{ mt: 0.5 }}>+91 91824 82534</Typography>
+                                    <Typography variant="h6" color="primary.main" fontWeight={700} sx={{ mt: 0.5 }}>+91 81435 35390</Typography>
                                 </Box>
                             </Box>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>

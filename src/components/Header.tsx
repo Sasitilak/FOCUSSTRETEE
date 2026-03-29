@@ -47,9 +47,9 @@ const Header: React.FC = () => {
                     {!isHome && !isAdmin && (
                         <Button onClick={() => navigate('/')} size="small" sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'flex' } }}>Home</Button>
                     )}
-                    {!isAdmin && (
+                    {/* {!isAdmin && (
                         <Button onClick={() => navigate('/admin')} size="small" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>Admin</Button>
-                    )}
+                    )} */}
                     {isAdmin && (
                         <Button onClick={() => navigate('/')} size="small" sx={{ color: 'text.secondary' }}>Site</Button>
                     )}
