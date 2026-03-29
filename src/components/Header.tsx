@@ -1,16 +1,12 @@
 import React from 'react';
-import { AppBar, Toolbar, Typography, Box, Button, ButtonBase, IconButton, useTheme } from '@mui/material';
+import { AppBar, Toolbar, Typography, Box, Button, ButtonBase, useTheme } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
-import DarkModeIcon from '@mui/icons-material/DarkMode';
-import LightModeIcon from '@mui/icons-material/LightMode';
-import { useAppTheme } from '../context/ThemeContext';
 
 const Header: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const theme = useTheme();
-    const { mode, toggleMode } = useAppTheme();
     const isHome = location.pathname === '/';
     const isAdmin = location.pathname.startsWith('/admin');
 
@@ -53,9 +49,9 @@ const Header: React.FC = () => {
                     {isAdmin && (
                         <Button onClick={() => navigate('/')} size="small" sx={{ color: 'text.secondary' }}>Site</Button>
                     )}
-                    <IconButton onClick={toggleMode} size="small" sx={{ color: 'text.secondary', ml: 0.5 }}>
+                    {/* <IconButton onClick={toggleMode} size="small" sx={{ color: 'text.secondary', ml: 0.5 }}>
                         {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-                    </IconButton>
+                    </IconButton> */}
                 </Box>
             </Toolbar>
         </AppBar>
