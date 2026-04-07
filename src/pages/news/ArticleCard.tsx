@@ -17,7 +17,7 @@ const ArticleCard: React.FC<Props> = ({ article }) => {
     return (
         <Box
             component="a"
-            href={article.url}
+            href={article.url ?? undefined}
             target="_blank"
             rel="noopener noreferrer"
             sx={{
