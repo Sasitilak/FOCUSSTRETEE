@@ -10,7 +10,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import HomeIcon from '@mui/icons-material/Home';
 import NewspaperIcon from '@mui/icons-material/Newspaper';
-import { getBranches } from '../services/api';
+import { getBranches, getNewsEnabled } from '../services/api';
 import type { Branch } from '../types/booking';
 import NewsFeed from './news/NewsFeed';
 
@@ -27,9 +27,11 @@ const LandingPage: React.FC = () => {
     const isDark = theme.palette.mode === 'dark';
     const [branches, setBranches] = useState<Branch[]>([]);
     const [view, setView] = useState<'home' | 'news'>('home');
+    const [newsEnabled, setNewsEnabled] = useState(false);
 
     useEffect(() => {
         getBranches().then(setBranches).catch(console.error);
+        getNewsEnabled().then(setNewsEnabled).catch(console.error);
     }, []);
 
     return (
@@ -40,7 +42,7 @@ const LandingPage: React.FC = () => {
                     position: 'sticky',
                     top: { xs: 56, md: 64 },
                     zIndex: 99,
-                    display: 'flex',
+                    display: newsEnabled ? 'flex' : 'none',
                     justifyContent: 'center',
                     py: 1.5,
                     bgcolor: 'transparent',

@@ -4,7 +4,7 @@ import {
     Typography, Divider, Button, useTheme, IconButton, AppBar, Toolbar,
     useMediaQuery, Switch, FormControlLabel, Snackbar, Alert
 } from '@mui/material';
-import { getMaintenanceMode, setMaintenanceMode } from '../services/api';
+import { getMaintenanceMode, setMaintenanceMode, getNewsEnabled, setNewsEnabled } from '../services/api';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import BookOnlineIcon from '@mui/icons-material/BookOnline';
@@ -44,18 +44,20 @@ const AdminLayout: React.FC = () => {
     const [mobileOpen, setMobileOpen] = useState(false);
 
     const [maintenance, setMaintenance] = useState(false);
+    const [newsEnabled, setNewsEnabledState] = useState(true);
     const [snack, setSnack] = useState('');
 
     useEffect(() => {
-        const fetchMaintenance = async () => {
+        const fetchSettings = async () => {
             try {
-                const isMaint = await getMaintenanceMode();
+                const [isMaint, isNews] = await Promise.all([getMaintenanceMode(), getNewsEnabled()]);
                 setMaintenance(isMaint);
+                setNewsEnabledState(isNews);
             } catch (error) {
-                console.error("Failed to fetch maintenance mode", error);
+                console.error("Failed to fetch settings", error);
             }
         };
-        fetchMaintenance();
+        fetchSettings();
     }, []);
 
     const handleLogout = async () => {
@@ -66,6 +68,18 @@ const AdminLayout: React.FC = () => {
     const handleNav = (path: string) => {
         navigate(path);
         if (isMobile) setMobileOpen(false);
+    };
+
+    const handleNewsToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newVal = e.target.checked;
+        setNewsEnabledState(newVal);
+        try {
+            await setNewsEnabled(newVal);
+            setSnack(newVal ? 'News section enabled' : 'News section disabled');
+        } catch {
+            setNewsEnabledState(!newVal);
+            setSnack('Failed to update news setting');
+        }
     };
 
     const handleMaintenanceToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,10 +151,16 @@ const AdminLayout: React.FC = () => {
             </List>
 
             <Box sx={{ p: 2 }}>
-                <Box sx={{ mb: 2 }}>
+                <Box sx={{ mb: 0.5 }}>
                     <FormControlLabel
                         control={<Switch size="small" checked={maintenance} onChange={handleMaintenanceToggle} color="warning" />}
                         label={<Typography variant="caption" color="text.secondary">Maintenance Mode</Typography>}
+                    />
+                </Box>
+                <Box sx={{ mb: 1.5 }}>
+                    <FormControlLabel
+                        control={<Switch size="small" checked={newsEnabled} onChange={handleNewsToggle} color="info" />}
+                        label={<Typography variant="caption" color="text.secondary">News Section</Typography>}
                     />
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>

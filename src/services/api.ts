@@ -1452,6 +1452,30 @@ let maintenanceCache = {
     TTL: 5 * 60 * 1000 // 5 minutes
 };
 
+let newsEnabledCache = {
+    value: true,
+    lastFetched: 0,
+    TTL: 5 * 60 * 1000
+};
+
+export const getNewsEnabled = async (): Promise<boolean> => {
+    const now = Date.now();
+    if (now - newsEnabledCache.lastFetched < newsEnabledCache.TTL) {
+        return newsEnabledCache.value;
+    }
+    const val = await getSetting('news_enabled');
+    const enabled = val !== 'false';
+    newsEnabledCache.value = enabled;
+    newsEnabledCache.lastFetched = now;
+    return enabled;
+};
+
+export const setNewsEnabled = async (enabled: boolean) => {
+    await updateSetting('news_enabled', enabled ? 'true' : 'false');
+    newsEnabledCache.value = enabled;
+    newsEnabledCache.lastFetched = Date.now();
+};
+
 export const getMaintenanceMode = async (): Promise<boolean> => {
     const now = Date.now();
     if (now - maintenanceCache.lastFetched < maintenanceCache.TTL) {
