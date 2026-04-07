@@ -8,8 +8,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import ImageIcon from '@mui/icons-material/Image';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
-import { getAdminBookings, approveBooking, rejectBooking } from '../../services/api';
-import type { BookingResponse } from '../../types/booking';
+import { getAdminBookings, approveBooking, rejectBooking, getBranches } from '../../services/api';
+import type { BookingResponse, Branch } from '../../types/booking';
 
 // ─── WhatsApp helpers ────────────────────────────────────────────────────────
 
@@ -24,13 +24,14 @@ const buildLocationText = (b: BookingResponse): string => {
     return [branch, floor].filter(Boolean).join(', ');
 };
 
-const buildConfirmationMessage = (b: BookingResponse): string => {
+const buildConfirmationMessage = (b: BookingResponse, mapsUrl?: string): string => {
     const location = buildLocationText(b);
+    const mapsLine = mapsUrl ? `\nLocation: ${mapsUrl}` : '';
     return `Hello ${b.customerName ?? 'Customer'},
 
 Thank you for booking with AcumenHive.
 
-Your booking for ${location} has been confirmed.
+Your booking for ${location} has been confirmed.${mapsLine}
 
 Booking ID: ${b.id}
 Amount Paid: ₹${b.amount}
@@ -51,21 +52,21 @@ Reference ID: ${b.id}
 You may submit a new request or contact support if needed.`;
 };
 
-const openWhatsApp = (b: BookingResponse, type: 'approved' | 'rejected') => {
-    const msg = type === 'approved' ? buildConfirmationMessage(b) : buildRejectionMessage(b);
+const openWhatsApp = (b: BookingResponse, type: 'approved' | 'rejected', mapsUrl?: string) => {
+    const msg = type === 'approved' ? buildConfirmationMessage(b, mapsUrl) : buildRejectionMessage(b);
     const link = buildWhatsAppLink(b.customerPhone ?? '', msg);
     window.open(link, '_blank');
 };
 
 // ─── Reusable WhatsApp button ─────────────────────────────────────────────────
 
-const WhatsAppButton = ({ booking, type, label }: { booking: BookingResponse; type: 'approved' | 'rejected'; label: string }) => (
+const WhatsAppButton = ({ booking, type, label, mapsUrl }: { booking: BookingResponse; type: 'approved' | 'rejected'; label: string; mapsUrl?: string }) => (
     <Button
         fullWidth
         variant="contained"
         size="small"
         startIcon={<WhatsAppIcon />}
-        onClick={() => openWhatsApp(booking, type)}
+        onClick={() => openWhatsApp(booking, type, mapsUrl)}
         sx={{
             bgcolor: '#25D366',
             '&:hover': { bgcolor: '#1ebe5d' },
@@ -100,6 +101,7 @@ const BookingInfoBox = ({ b, theme }: { b: BookingResponse; theme: any }) => (
 const AdminApprovals: React.FC = () => {
     const theme = useTheme();
     const [bookings, setBookings] = useState<BookingResponse[]>([]);
+    const [branches, setBranches] = useState<Branch[]>([]);
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState<string | null>(null);
     const [viewScreenshot, setViewScreenshot] = useState<BookingResponse | null>(null);
@@ -108,11 +110,15 @@ const AdminApprovals: React.FC = () => {
     // Tracks bookings acted on THIS session (cleared on page leave/refresh)
     const [sessionProcessed, setSessionProcessed] = useState<{ [id: string]: 'approved' | 'rejected' }>({});
 
+    const getMapsUrl = (b: BookingResponse) =>
+        branches.find(br => br.id === b.location?.branch)?.mapsUrl;
+
     useEffect(() => {
-        const fetchBookings = async () => {
+        const fetchData = async () => {
             try {
-                const d = await getAdminBookings();
+                const [d, br] = await Promise.all([getAdminBookings(), getBranches()]);
                 setBookings(d);
+                setBranches(br);
             } catch (err) {
                 console.error('Failed to fetch bookings:', err);
                 setBookings([]);
@@ -120,7 +126,7 @@ const AdminApprovals: React.FC = () => {
                 setLoading(false);
             }
         };
-        fetchBookings();
+        fetchData();
     }, []);
 
     const pending = bookings.filter(b => b.status === 'pending');
@@ -162,7 +168,7 @@ const AdminApprovals: React.FC = () => {
 
         // ✅ Open WhatsApp RIGHT HERE — synchronous, direct user gesture, never blocked
         if (booking) {
-            openWhatsApp(booking, type === 'approve' ? 'approved' : 'rejected');
+            openWhatsApp(booking, type === 'approve' ? 'approved' : 'rejected', getMapsUrl(booking));
         }
 
         setConfirmAction(null);
@@ -268,6 +274,7 @@ const AdminApprovals: React.FC = () => {
                                             booking={b}
                                             type={sessionProcessed[b.id]}
                                             label={`Send Again to ${(b.customerName ?? 'Customer').split(' ')[0]}`}
+                                            mapsUrl={getMapsUrl(b)}
                                         />
                                     </CardContent>
                                 </Card>
@@ -301,6 +308,7 @@ const AdminApprovals: React.FC = () => {
                                             booking={b}
                                             type="approved"
                                             label={`Send Again to ${(b.customerName ?? 'Customer').split(' ')[0]}`}
+                                            mapsUrl={getMapsUrl(b)}
                                         />
                                     </CardContent>
                                 </Card>

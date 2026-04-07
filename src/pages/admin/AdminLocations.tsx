@@ -390,7 +390,7 @@ const LocationDialog: React.FC<LocationDialogProps> = ({ open, type, mode, data,
                     price_1m: 1500
                 }
             });
-            else setFormData({ name: '', address: '' });
+            else setFormData({ name: '', address: '', mapsUrl: '' });
         }
     }, [data, type, open]);
 
@@ -411,6 +411,13 @@ const LocationDialog: React.FC<LocationDialogProps> = ({ open, type, mode, data,
                             label="Address" fullWidth size="small" multiline rows={2}
                             value={formData.address || ''}
                             onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        />
+                        <TextField
+                            label="Google Maps URL" fullWidth size="small"
+                            placeholder="https://maps.app.goo.gl/..."
+                            value={formData.mapsUrl || ''}
+                            onChange={(e) => setFormData({ ...formData, mapsUrl: e.target.value })}
+                            helperText="Paste the Google Maps share link for this branch"
                         />
                     </Box>
                 )}

@@ -20,8 +20,6 @@ import HomeIcon from '@mui/icons-material/Home';
 import LocationOnIcon from '@mui/icons-material/LocationOn';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
-import EventBusyIcon from '@mui/icons-material/EventBusy';
-import CampaignIcon from '@mui/icons-material/Campaign';
 import GridViewIcon from '@mui/icons-material/GridView';
 
 
@@ -32,8 +30,6 @@ const navItems = [
     { label: 'Bookings', icon: <BookOnlineIcon />, path: '/admin/bookings' },
     { label: 'Approvals', icon: <PendingActionsIcon />, path: '/admin/approvals' },
     { label: 'Seats', icon: <ChairIcon />, path: '/admin/seats' },
-    { label: 'Holidays', icon: <EventBusyIcon />, path: '/admin/holidays' },
-    { label: 'Announcements', icon: <CampaignIcon />, path: '/admin/announcements' },
     { label: 'Facility Config', icon: <LocationOnIcon />, path: '/admin/locations' },
     { label: 'Room Layouts', icon: <GridViewIcon />, path: '/admin/layout' },
 ];

@@ -43,15 +43,9 @@ const Header: React.FC = () => {
                     {!isHome && !isAdmin && (
                         <Button onClick={() => navigate('/')} size="small" sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'flex' } }}>Home</Button>
                     )}
-                    {/* {!isAdmin && (
-                        <Button onClick={() => navigate('/admin')} size="small" sx={{ color: 'text.secondary', fontSize: '0.85rem' }}>Admin</Button>
-                    )} */}
                     {isAdmin && (
                         <Button onClick={() => navigate('/')} size="small" sx={{ color: 'text.secondary' }}>Site</Button>
                     )}
-                    {/* <IconButton onClick={toggleMode} size="small" sx={{ color: 'text.secondary', ml: 0.5 }}>
-                        {mode === 'dark' ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-                    </IconButton> */}
                 </Box>
             </Toolbar>
         </AppBar>

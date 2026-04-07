@@ -1,11 +1,15 @@
-import React from 'react';
-import { Box, Container, Typography, Button, Grid, Card, CardContent, useTheme } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Container, Typography, Button, Grid, Card, CardContent, useTheme, Chip } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import ChairIcon from '@mui/icons-material/Chair';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import LocationOnIcon from '@mui/icons-material/LocationOn';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { getBranches } from '../services/api';
+import type { Branch } from '../types/booking';
 
 const features = [
     { icon: <CalendarMonthIcon sx={{ fontSize: 32 }} />, title: 'Pick Your Dates', desc: 'Select a date range that works for your schedule.' },
@@ -18,6 +22,11 @@ const LandingPage: React.FC = () => {
     const navigate = useNavigate();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
+    const [branches, setBranches] = useState<Branch[]>([]);
+
+    useEffect(() => {
+        getBranches().then(setBranches).catch(console.error);
+    }, []);
 
     return (
         <Box>
@@ -127,6 +136,70 @@ const LandingPage: React.FC = () => {
                         </Grid>
                     ))}
                 </Grid>
+
+                {/* Locations */}
+                {branches.length > 0 && (
+                    <Box sx={{ mt: { xs: 6, md: 10 } }}>
+                        <Typography variant="h4" textAlign="center" sx={{ mb: 1 }}>Our Locations</Typography>
+                        <Typography variant="body2" textAlign="center" color="text.secondary" sx={{ mb: { xs: 4, md: 6 }, maxWidth: 420, mx: 'auto' }}>
+                            Find us across multiple branches — pick the one closest to you
+                        </Typography>
+                        <Grid container spacing={{ xs: 2, md: 3 }} justifyContent="center">
+                            {branches.map((branch, i) => {
+                                const seatCount = branch.floors.reduce((sum, f) => sum + f.rooms.reduce((rs, r) => rs + r.seats.length, 0), 0);
+                                const floorCount = branch.floors.length;
+                                return (
+                                    <Grid size={{ xs: 12, sm: 6, md: 4 }} key={branch.id}>
+                                        <Card
+                                            className={`animate-fade-in-up stagger-${i + 1}`}
+                                            elevation={0}
+                                            sx={{
+                                                height: '100%',
+                                                border: `1px solid ${theme.palette.divider}`,
+                                                borderRadius: 3,
+                                                transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                                                '&:hover': { transform: 'translateY(-4px)', boxShadow: theme.shadows[4] },
+                                            }}
+                                        >
+                                            <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                                <Box sx={{
+                                                    width: 44, height: 44, borderRadius: '12px',
+                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                    background: isDark ? 'rgba(99,102,241,0.1)' : 'rgba(79,70,229,0.1)',
+                                                    color: 'primary.main', mb: 2,
+                                                }}>
+                                                    <LocationOnIcon />
+                                                </Box>
+                                                <Typography variant="h6" fontWeight={700} gutterBottom>
+                                                    {branch.name.split('—')[0].trim()}
+                                                </Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 2, flex: 1 }}>
+                                                    {branch.address}
+                                                </Typography>
+                                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+                                                    <Chip label={`${floorCount} Floor${floorCount !== 1 ? 's' : ''}`} size="small" variant="outlined" />
+                                                    {seatCount > 0 && <Chip label={`${seatCount} Seats`} size="small" variant="outlined" />}
+                                                </Box>
+                                                {branch.mapsUrl && (
+                                                    <Button
+                                                        variant="outlined"
+                                                        size="small"
+                                                        startIcon={<LocationOnIcon />}
+                                                        endIcon={<OpenInNewIcon sx={{ fontSize: '14px !important' }} />}
+                                                        onClick={() => window.open(branch.mapsUrl, '_blank', 'noopener,noreferrer')}
+                                                        sx={{ borderRadius: 2 }}
+                                                    >
+                                                        View on Maps
+                                                    </Button>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                );
+                            })}
+                        </Grid>
+                    </Box>
+                )}
 
                 {/* CTA */}
                 <Box sx={{

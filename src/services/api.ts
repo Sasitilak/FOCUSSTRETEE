@@ -201,6 +201,7 @@ export const getBranches = async (): Promise<Branch[]> => {
         id: b.id,
         name: b.name,
         address: b.address,
+        mapsUrl: b.maps_url || undefined,
         floors: floorData
             .filter(f => f.branch_id === b.id)
             .map(f => ({
@@ -739,7 +740,7 @@ export const getRoomLayout = async (roomId: string): Promise<{
 }> => {
     if (!isSupabaseConfigured()) {
         await delay(300);
-        return { gridCols: 8, gridRows: 10, seatPositions: [], elements: [] };
+        return { gridCols: 0, gridRows: 0, seatPositions: [], elements: [] };
     }
 
     const { data: elemData, error: elemError } = await supabase
@@ -752,7 +753,7 @@ export const getRoomLayout = async (roomId: string): Promise<{
 
     // Parse config entry (type='config')
     const configRow = rows.find((e: any) => e.type === 'config');
-    const gridCols = configRow?.grid_col || 8;
+    const gridCols = configRow?.grid_col || 0;
     const gridRows = configRow?.grid_row || 0;
 
     // Parse seat positions (type='seat', seat_id stored in 'side' column)
@@ -792,7 +793,7 @@ export const getRoomLayoutsBatch = async (roomIds: string[]): Promise<Map<string
 
     if (!isSupabaseConfigured()) {
         await delay(300);
-        roomIds.forEach(id => result.set(id, { gridCols: 8, gridRows: 10, seatPositions: [], elements: [] }));
+        roomIds.forEach(id => result.set(id, { gridCols: 0, gridRows: 0, seatPositions: [], elements: [] }));
         return result;
     }
 
@@ -807,7 +808,7 @@ export const getRoomLayoutsBatch = async (roomIds: string[]): Promise<Map<string
     roomIds.forEach(roomId => {
         const roomRows = rows.filter((e: any) => e.room_id === roomId);
         const configRow = roomRows.find((e: any) => e.type === 'config');
-        const gridCols = configRow?.grid_col || 8;
+        const gridCols = configRow?.grid_col || 0;
         const gridRows = configRow?.grid_row || 0;
 
         const seatPositions: SeatPosition[] = roomRows
@@ -969,9 +970,13 @@ export const addBranch = async (branch: Omit<Branch, 'id' | 'floors'>): Promise<
         mockBranches.push(newB);
         return newB;
     }
-    const { data, error } = await supabase.from('branches').insert(branch).select().single();
+    const { data, error } = await supabase.from('branches').insert({
+        name: branch.name,
+        address: branch.address,
+        maps_url: branch.mapsUrl || null,
+    }).select().single();
     if (error) throw error;
-    return { ...data, floors: [] };
+    return { id: data.id, name: data.name, address: data.address, mapsUrl: data.maps_url || undefined, floors: [] };
 };
 
 export const updateBranch = async (id: number, branch: Partial<Branch>) => {
@@ -981,7 +986,11 @@ export const updateBranch = async (id: number, branch: Partial<Branch>) => {
         if (idx !== -1) mockBranches[idx] = { ...mockBranches[idx], ...branch };
         return;
     }
-    const { error } = await supabase.from('branches').update(branch).eq('id', id);
+    const updates: any = {};
+    if (branch.name !== undefined) updates.name = branch.name;
+    if (branch.address !== undefined) updates.address = branch.address;
+    if (branch.mapsUrl !== undefined) updates.maps_url = branch.mapsUrl || null;
+    const { error } = await supabase.from('branches').update(updates).eq('id', id);
     if (error) throw error;
 };
 
@@ -1215,16 +1224,16 @@ export const updateRoom = async (branchId: number, floorNumber: number, roomId: 
             if (insErr) throw insErr;
         }
 
-        // Find seats to REMOVE
-        const seatNosToRemove = currentSeatNos.filter(n => n < from || n > to);
-        if (seatNosToRemove.length > 0) {
-            const seatNosStr = seatNosToRemove.map(n => String(n));
-            const { error: delErr } = await supabase
-                .from('seats')
-                .delete()
-                .eq('room_id', roomId)
-                .in('seat_no', seatNosStr);
-
+        // Find seats to REMOVE (by ID to safely nullify FK references)
+        const seatsToRemove = currentSeats.filter(s => {
+            const n = parseInt(s.seat_no);
+            return n < from || n > to;
+        });
+        if (seatsToRemove.length > 0) {
+            const removeIds = seatsToRemove.map(s => s.id);
+            // Nullify seat_id in bookings first to avoid FK constraint violation
+            await supabase.from('bookings').update({ seat_id: null }).in('seat_id', removeIds);
+            const { error: delErr } = await supabase.from('seats').delete().in('id', removeIds);
             if (delErr) {
                 console.error("Deletion failed:", delErr);
                 throw new Error("Cannot remove seats that have active bookings or are otherwise protected.");
@@ -1256,6 +1265,17 @@ export const deleteRoom = async (branchId: number, floorNumber: number, roomId: 
         }
         return;
     }
+    // Get all seat IDs for this room
+    const { data: roomSeats } = await supabase.from('seats').select('id').eq('room_id', roomId);
+    if (roomSeats && roomSeats.length > 0) {
+        const seatIds = roomSeats.map((s: any) => s.id);
+        // Nullify seat_id in bookings to avoid FK constraint violation
+        await supabase.from('bookings').update({ seat_id: null }).in('seat_id', seatIds);
+        // Delete seats
+        await supabase.from('seats').delete().eq('room_id', roomId);
+    }
+    // Delete room layout elements
+    await supabase.from('room_elements').delete().eq('room_id', roomId);
     const { error } = await supabase.from('rooms').delete().eq('id', roomId);
     if (error) throw error;
 };

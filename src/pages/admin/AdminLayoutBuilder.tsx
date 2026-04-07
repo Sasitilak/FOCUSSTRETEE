@@ -37,8 +37,8 @@ const AdminLayoutBuilder: React.FC = () => {
     const [snackbar, setSnackbar] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' });
 
     // Layout editor states
-    const [gridCols, setGridCols] = useState(8);
-    const [gridRows, setGridRows] = useState(10);
+    const [gridCols, setGridCols] = useState(0);
+    const [gridRows, setGridRows] = useState(0);
     const [activeTool, setActiveTool] = useState<Tool>('seat');
     const [placedSeats, setPlacedSeats] = useState<PlacedSeat[]>([]);
     const [elements, setElements] = useState<RoomElement[]>([]);
@@ -276,8 +276,12 @@ const AdminLayoutBuilder: React.FC = () => {
                                     type="number"
                                     size="small"
                                     sx={{ width: 70 }}
-                                    value={gridCols}
-                                    onChange={e => setGridCols(Math.max(2, Math.min(20, Number(e.target.value))))}
+                                    value={gridCols || ''}
+                                    onChange={e => {
+                                        const n = Number(e.target.value);
+                                        setGridCols(e.target.value === '' ? 0 : Math.min(20, Math.max(0, n)));
+                                    }}
+                                    onBlur={() => setGridCols(c => Math.max(2, c || 2))}
                                     inputProps={{ min: 2, max: 20 }}
                                 />
                                 <Typography variant="body2" color="text.secondary">×</Typography>
@@ -286,8 +290,12 @@ const AdminLayoutBuilder: React.FC = () => {
                                     type="number"
                                     size="small"
                                     sx={{ width: 70 }}
-                                    value={gridRows}
-                                    onChange={e => setGridRows(Math.max(2, Math.min(25, Number(e.target.value))))}
+                                    value={gridRows || ''}
+                                    onChange={e => {
+                                        const n = Number(e.target.value);
+                                        setGridRows(e.target.value === '' ? 0 : Math.min(25, Math.max(0, n)));
+                                    }}
+                                    onBlur={() => setGridRows(r => Math.max(2, r || 2))}
                                     inputProps={{ min: 2, max: 25 }}
                                 />
 
