@@ -22,14 +22,17 @@ export const getNews = async (opts: {
     const { dateFilter, category, page = 0 } = opts;
     const { from, to } = getDateRange(dateFilter);
 
+    // Use fetched_at for today/yesterday so timezone differences don't hide articles
+    const dateColumn = dateFilter === 'week' ? 'published_at' : 'fetched_at';
+
     let query = supabase
         .from('news_articles')
         .select('*')
-        .gte('published_at', from)
+        .gte(dateColumn, from)
         .order('published_at', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-    if (to) query = query.lt('published_at', to);
+    if (to) query = query.lt(dateColumn, to);
     if (category && category !== 'all') query = query.eq('category', category);
 
     const { data, error } = await query;

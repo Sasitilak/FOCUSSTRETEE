@@ -10,7 +10,7 @@ import { CATEGORY_CONFIG } from '../../types/news';
 import type { NewsArticle, DateFilter } from '../../types/news';
 
 const DATE_OPTIONS: { value: DateFilter; label: string }[] = [
-    { value: 'today', label: 'Today' },
+    { value: 'today', label: 'Latest' },
     { value: 'yesterday', label: 'Yesterday' },
     { value: 'week', label: 'This Week' },
 ];
@@ -19,7 +19,7 @@ const CATEGORIES = ['all', ...Object.keys(CATEGORY_CONFIG)];
 
 const NewsFeed: React.FC = () => {
     const theme = useTheme();
-    const [dateFilter, setDateFilter] = useState<DateFilter>('today');
+    const [dateFilter, setDateFilter] = useState<DateFilter>('week');
     const [category, setCategory] = useState('all');
     const [articles, setArticles] = useState<NewsArticle[]>([]);
     const [page, setPage] = useState(0);
