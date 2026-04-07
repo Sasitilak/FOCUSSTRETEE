@@ -113,6 +113,7 @@ const LandingPage: React.FC = () => {
                 <Box
                     sx={{
                         display: 'flex',
+                        alignItems: 'flex-start',
                         width: '200%',
                         transform: view === 'home' ? 'translateX(0)' : 'translateX(-50%)',
                         transition: 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -309,9 +310,11 @@ const LandingPage: React.FC = () => {
 
                     {/* NEWS view */}
                     <Box sx={{ width: '50%', minWidth: '50%' }}>
-                        <Container maxWidth="lg" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2, md: 3 }, pb: 6 }}>
-                            <NewsFeed />
-                        </Container>
+                        {view === 'news' && (
+                            <Container maxWidth="lg" sx={{ px: { xs: 2, md: 4 }, pt: { xs: 2, md: 3 }, pb: 6 }}>
+                                <NewsFeed />
+                            </Container>
+                        )}
                     </Box>
                 </Box>
             </Box>
