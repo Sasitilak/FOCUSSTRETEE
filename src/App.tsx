@@ -25,6 +25,7 @@ import AdminLogin from './pages/admin/AdminLogin';
 import MaintenanceGuard from './components/MaintenanceGuard';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
+import NewsPage from './pages/NewsPage';
 
 /* Protected route — redirects to /admin/login if not authenticated */
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -63,6 +64,7 @@ const AppContent: React.FC = () => {
             <Route path="/details" element={<MaintenanceGuard><><Header /><BookingDetailsPage /><Footer /></></MaintenanceGuard>} />
             <Route path="/payment" element={<MaintenanceGuard><><Header /><PaymentPage /><Footer /></></MaintenanceGuard>} />
             <Route path="/confirmation" element={<MaintenanceGuard><><Header /><ConfirmationPage /><Footer /></></MaintenanceGuard>} />
+            <Route path="/news" element={<><Header /><NewsPage /><Footer /></>} />
             <Route path="/privacy" element={<><Header /><PrivacyPolicy /><Footer /></>} />
             <Route path="/terms" element={<><Header /><TermsOfService /><Footer /></>} />
 
