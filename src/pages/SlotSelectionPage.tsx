@@ -8,7 +8,6 @@ import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs, { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import { useBooking } from '../context/BookingContext';
 import { getHolidays } from '../services/api';
 import type { Holiday } from '../types/booking';
@@ -19,34 +18,24 @@ const SlotSelectionPage: React.FC = () => {
     const isDark = theme.palette.mode === 'dark';
     const { setSelectedDate, setSelectedSlot } = useBooking();
 
-    // Duration selectors
     const [months, setMonths] = useState(0);
     const [weeks, setWeeks] = useState(1);
-
-    // Date state
     const [fromDate, setFromDate] = useState<Dayjs | null>(dayjs());
     const [holidays, setHolidays] = useState<Holiday[]>([]);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        getHolidays().then(setHolidays).catch(console.error);
-    }, []);
+    useEffect(() => { getHolidays().then(setHolidays).catch(console.error); }, []);
 
-    // Auto-convert 4 weeks to 1 month
     useEffect(() => {
-        if (weeks >= 4) {
-            setMonths(m => m + 1);
-            setWeeks(0);
-        }
+        if (weeks >= 4) { setMonths(m => m + 1); setWeeks(0); }
     }, [weeks]);
 
-    // Calculate To date and total days using calendar-month logic
     const toDate = useMemo(() => {
         if (!fromDate) return null;
         let date = fromDate;
         if (months > 0) date = date.add(months, 'month');
         if (weeks > 0) date = date.add(weeks, 'week');
-        return date; // e.g. 5th to 5th
+        return date;
     }, [fromDate, months, weeks]);
 
     const totalDays = useMemo(() => {
@@ -54,21 +43,18 @@ const SlotSelectionPage: React.FC = () => {
         return toDate.diff(fromDate, 'day') + 1;
     }, [fromDate, toDate]);
 
-
-
-    // Validation
     useEffect(() => {
-        if (totalDays > 0 && totalDays < 7) {
-            setError('Minimum booking period is 1 week');
-        } else {
-            setError(null);
-        }
+        setError(totalDays > 0 && totalDays < 7 ? 'Minimum booking period is 1 week' : null);
     }, [totalDays]);
 
     const shouldDisableDate = (date: Dayjs) => {
-        const formatted = date.format('YYYY-MM-DD');
-        return holidays.some(h => h.date === formatted && (h.branchId === null));
+        return holidays.some(h => h.date === date.format('YYYY-MM-DD') && h.branchId === null);
     };
+
+    const durationParts: string[] = [];
+    if (months > 0) durationParts.push(`${months} month${months > 1 ? 's' : ''}`);
+    if (weeks > 0) durationParts.push(`${weeks} week${weeks > 1 ? 's' : ''}`);
+    const durationLabel = durationParts.join(' + ') || 'Select duration';
 
     const handleContinue = () => {
         if (!fromDate || !toDate || error || totalDays < 7) return;
@@ -77,7 +63,7 @@ const SlotSelectionPage: React.FC = () => {
             id: `slot-${fromDate.format('YYYYMMDD')}-${toDate.format('YYYYMMDD')}`,
             time: durationLabel,
             available: true,
-            price: 0, // Will be set in LocationSelectionPage
+            price: 0,
             durationDays: totalDays,
             effectiveWeeks: months * 4 + weeks,
         });
@@ -86,104 +72,77 @@ const SlotSelectionPage: React.FC = () => {
 
     const valid = fromDate && !error && totalDays >= 7;
 
-    // Duration label for display
-    const durationParts: string[] = [];
-    if (months > 0) durationParts.push(`${months} month${months > 1 ? 's' : ''}`);
-    if (weeks > 0) durationParts.push(`${weeks} week${weeks > 1 ? 's' : ''}`);
-    const durationLabel = durationParts.join(' + ') || 'Select duration';
-
     return (
-        <Container maxWidth="lg" sx={{ py: 5 }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
             <Box className="animate-fade-in-up" sx={{ mb: 4 }}>
-                <Typography variant="h3" gutterBottom>Select Duration</Typography>
-                <Typography color="text.secondary" sx={{ maxWidth: 600 }}>Choose how long you'd like to book. You'll be able to see room-specific pricing in the next step.</Typography>
+                <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontSize: '0.65rem' }}>Step 1 of 4</Typography>
+                <Typography variant="h4" sx={{ mt: 0.5 }}>Select your duration</Typography>
+                <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 500 }}>
+                    Choose how long you'd like to book. Room pricing will be shown in the next step.
+                </Typography>
             </Box>
 
-            <Grid container spacing={4} justifyContent="center">
-                {/* Center: Controls */}
-                <Grid size={{ xs: 12, md: 8 }}>
-                    {/* Duration Picker */}
+            <Grid container spacing={3} justifyContent="center">
+                <Grid size={{ xs: 12, md: 7 }}>
+                    {/* Duration */}
                     <Paper
                         elevation={0}
                         className="animate-fade-in-up stagger-1"
-                        sx={{
-                            p: 4, mb: 3,
-                            border: `1px solid ${theme.palette.divider}`,
-                            background: isDark ? 'rgba(19,25,39,0.5)' : 'rgba(255,255,255,0.9)',
-                        }}
+                        sx={{ p: { xs: 3, md: 4 }, mb: 2.5, border: `1px solid ${theme.palette.divider}` }}
                     >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                            <CalendarMonthIcon color="primary" />
-                            <Typography variant="h6" fontWeight={600}>Booking Duration</Typography>
-                        </Box>
+                        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2.5 }}>Duration</Typography>
 
-                        <Grid container spacing={3}>
+                        <Grid container spacing={2.5}>
                             <Grid size={{ xs: 6 }}>
-                                <FormControl fullWidth>
+                                <FormControl fullWidth size="small">
                                     <InputLabel>Months</InputLabel>
-                                    <Select
-                                        value={months}
-                                        label="Months"
-                                        onChange={(e) => setMonths(Number(e.target.value))}
-                                    >
+                                    <Select value={months} label="Months" onChange={e => setMonths(Number(e.target.value))}>
                                         {[0, 1, 2, 3, 4, 5, 6].map(m => (
-                                            <MenuItem key={m} value={m}>
-                                                {m === 0 ? '0 months' : `${m} month${m > 1 ? 's' : ''}`}
-                                            </MenuItem>
+                                            <MenuItem key={m} value={m}>{m === 0 ? '0 months' : `${m} month${m > 1 ? 's' : ''}`}</MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>
                             </Grid>
                             <Grid size={{ xs: 6 }}>
-                                <FormControl fullWidth>
+                                <FormControl fullWidth size="small">
                                     <InputLabel>Weeks</InputLabel>
-                                    <Select
-                                        value={weeks}
-                                        label="Weeks"
-                                        onChange={(e) => setWeeks(Number(e.target.value))}
-                                    >
+                                    <Select value={weeks} label="Weeks" onChange={e => setWeeks(Number(e.target.value))}>
                                         {[0, 1, 2, 3, 4].map(w => (
-                                            <MenuItem key={w} value={w}>
-                                                {w === 0 ? '0 weeks' : w === 4 ? '4 weeks (becomes 1 month)' : `${w} week${w > 1 ? 's' : ''}`}
-                                            </MenuItem>
+                                            <MenuItem key={w} value={w}>{w === 0 ? '0 weeks' : w === 4 ? '4 weeks (1 month)' : `${w} week${w > 1 ? 's' : ''}`}</MenuItem>
                                         ))}
                                     </Select>
                                 </FormControl>
                             </Grid>
                         </Grid>
 
-                        {/* Duration display */}
                         {totalDays > 0 && (
                             <Box sx={{
-                                mt: 3, p: 2, borderRadius: 2,
-                                bgcolor: isDark ? 'rgba(0,173,181,0.08)' : 'rgba(59,172,182,0.06)',
-                                border: `1px solid ${isDark ? 'rgba(0,173,181,0.2)' : 'rgba(59,172,182,0.15)'}`,
+                                mt: 2.5, p: 2, borderRadius: 2,
+                                bgcolor: isDark ? 'rgba(245,158,11,0.06)' : 'rgba(245,158,11,0.03)',
+                                border: `1px solid ${isDark ? 'rgba(245,158,11,0.12)' : 'rgba(245,158,11,0.08)'}`,
                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                             }}>
                                 <Box>
-                                    <Typography variant="body2" color="text.secondary">Selected Duration</Typography>
-                                    <Typography variant="h6" fontWeight={700}>{durationLabel}</Typography>
+                                    <Typography variant="caption" color="text.secondary">Duration</Typography>
+                                    <Typography variant="body1" fontWeight={600}>{durationLabel}</Typography>
                                 </Box>
                                 <Box sx={{ textAlign: 'right' }}>
-                                    <Typography variant="body2" color="text.secondary">Total Days</Typography>
-                                    <Typography variant="h6" fontWeight={700} color="primary.main">{totalDays} days</Typography>
+                                    <Typography variant="caption" color="text.secondary">Total</Typography>
+                                    <Typography variant="body1" fontWeight={600} color="primary.main">{totalDays} days</Typography>
                                 </Box>
                             </Box>
                         )}
                     </Paper>
 
-                    {/* Start Date Picker */}
+                    {/* Start date */}
                     <Paper
                         elevation={0}
                         className="animate-fade-in-up stagger-2"
-                        sx={{ p: 4, mb: 3, border: `1px solid ${theme.palette.divider}` }}
+                        sx={{ p: { xs: 3, md: 4 }, border: `1px solid ${theme.palette.divider}` }}
                     >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
-                            <CalendarMonthIcon color="primary" />
-                            <Typography variant="h6" fontWeight={600}>Start Date</Typography>
-                        </Box>
+                        <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 2.5 }}>Start date</Typography>
                         <LocalizationProvider dateAdapter={AdapterDayjs}>
-                            <Grid container spacing={3}>
+                            <Grid container spacing={2.5}>
                                 <Grid size={{ xs: 12, sm: 6 }}>
                                     <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>From</Typography>
                                     <DatePicker
@@ -193,41 +152,34 @@ const SlotSelectionPage: React.FC = () => {
                                         format="DD/MM/YYYY"
                                         minDate={dayjs()}
                                         maxDate={dayjs().add(90, 'day')}
-                                        slotProps={{ textField: { fullWidth: true } }}
+                                        slotProps={{ textField: { fullWidth: true, size: 'small' } }}
                                     />
                                 </Grid>
                                 <Grid size={{ xs: 12, sm: 6 }}>
-                                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>To (auto-calculated)</Typography>
+                                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>To (calculated)</Typography>
                                     <DatePicker
                                         value={toDate}
                                         readOnly
                                         format="DD/MM/YYYY"
                                         slotProps={{
                                             textField: {
-                                                fullWidth: true,
-                                                sx: { '& .MuiOutlinedInput-root': { bgcolor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' } }
+                                                fullWidth: true, size: 'small',
+                                                sx: { '& .MuiOutlinedInput-root': { bgcolor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)' } }
                                             }
                                         }}
                                     />
                                 </Grid>
                             </Grid>
                         </LocalizationProvider>
-                        {error && <Alert severity="error" sx={{ mt: 3 }}>{error}</Alert>}
+                        {error && <Alert severity="error" sx={{ mt: 2.5 }}>{error}</Alert>}
                     </Paper>
-
                 </Grid>
             </Grid>
 
             {valid && (
-                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}>
-                    <Button
-                        variant="contained"
-                        size="large"
-                        onClick={handleContinue}
-                        endIcon={<ArrowForwardIcon />}
-                        sx={{ px: 6, py: 1.5 }}
-                    >
-                        Continue to Location Selection
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                    <Button variant="contained" size="large" onClick={handleContinue} endIcon={<ArrowForwardIcon />} sx={{ px: 5, py: 1.4 }}>
+                        Continue
                     </Button>
                 </Box>
             )}

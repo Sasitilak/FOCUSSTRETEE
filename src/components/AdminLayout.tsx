@@ -21,6 +21,7 @@ import LocationOnIcon from '@mui/icons-material/LocationOn';
 import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import GridViewIcon from '@mui/icons-material/GridView';
+import BarChartIcon from '@mui/icons-material/BarChart';
 
 
 const DRAWER_WIDTH = 240;
@@ -32,6 +33,7 @@ const navItems = [
     { label: 'Seats', icon: <ChairIcon />, path: '/admin/seats' },
     { label: 'Facility Config', icon: <LocationOnIcon />, path: '/admin/locations' },
     { label: 'Room Layouts', icon: <GridViewIcon />, path: '/admin/layout' },
+    { label: 'News Analytics', icon: <BarChartIcon />, path: '/admin/news-analytics' },
 ];
 
 const AdminLayout: React.FC = () => {

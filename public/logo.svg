@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 170" fill="none">
+  <defs>
+    <!-- Glow filter for the lamp shade -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Outer glow behind everything -->
+  <ellipse cx="55" cy="48" rx="38" ry="32" fill="#fbbf24" opacity="0.15"/>
+  <ellipse cx="55" cy="48" rx="32" ry="28" fill="#f59e0b" opacity="0.12"/>
+
+  <!-- Stem/neck (drawn FIRST so it goes behind the base) -->
+  <path d="M60 142 C58 125, 44 105, 40 85 C37 70, 38 60, 42 50" stroke="#9ca3af" stroke-width="6" stroke-linecap="round" fill="none"/>
+
+  <!-- Base (semicircle — drawn AFTER stem so it covers it) -->
+  <path d="M35 145 A25 25 0 0 1 85 145Z" fill="#fb923c"/>
+
+  <!-- Lamp shade (dome) with glow -->
+  <ellipse cx="55" cy="48" rx="28" ry="24" fill="#fbbf24" filter="url(#glow)"/>
+  <ellipse cx="55" cy="48" rx="25" ry="21" fill="#f59e0b"/>
+
+  <!-- Top cap -->
+  <rect x="50" y="22" width="10" height="8" rx="2" fill="#d97706"/>
+
+  <!-- Light opening (bottom of shade) -->
+  <ellipse cx="55" cy="62" rx="18" ry="5" fill="#fef3c7"/>
+
+  <!-- Light ring -->
+  <path d="M37 62 A18 5 0 0 0 73 62" stroke="#fbbf24" stroke-width="3" fill="none"/>
+
+  <!-- Light glow effect -->
+  <ellipse cx="55" cy="68" rx="12" ry="3" fill="#fef3c7" opacity="0.4"/>
+</svg>

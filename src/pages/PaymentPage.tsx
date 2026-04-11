@@ -115,7 +115,7 @@ const PaymentPage: React.FC = () => {
                     <Paper elevation={0} className="animate-fade-in-up stagger-1" sx={{ p: 4, mb: 3, border: `1px solid ${theme.palette.divider}` }}>
                         <Typography variant="h6" fontWeight={600} sx={{ mb: 2 }}>Payment Details</Typography>
 
-                        <Box sx={{ p: 3, borderRadius: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(124,58,237,0.08)' : 'rgba(124,58,237,0.04)', border: `1px dashed ${theme.palette.primary.main}40`, mb: 3 }}>
+                        <Box sx={{ p: 3, borderRadius: 3, bgcolor: theme.palette.mode === 'dark' ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.04)', border: `1px dashed ${theme.palette.primary.main}40`, mb: 3 }}>
 
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, mb: 2 }}>
                                 <Box>

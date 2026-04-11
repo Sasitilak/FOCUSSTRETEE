@@ -35,24 +35,25 @@ const BookingDetailsPage: React.FC = () => {
     };
 
     return (
-        <Container maxWidth="lg" sx={{ py: 5 }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
             <Box className="animate-fade-in-up">
-                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/location')} sx={{ mb: 2, color: 'text.secondary' }}>Back</Button>
-                <Typography variant="h3" gutterBottom>Your Details</Typography>
-                <Typography color="text.secondary" sx={{ mb: 4 }}>We'll send your confirmation here</Typography>
+                <Button startIcon={<ArrowBackIcon />} onClick={() => navigate('/location')} sx={{ mb: 2, color: 'text.secondary', px: 0 }}>Back</Button>
+                <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 2, fontSize: '0.65rem' }}>Step 3 of 4</Typography>
+                <Typography variant="h4" sx={{ mt: 0.5 }}>Your details</Typography>
+                <Typography color="text.secondary" sx={{ mt: 1, mb: 4 }}>We'll send your confirmation on WhatsApp</Typography>
             </Box>
 
-            <Grid container spacing={4}>
+            <Grid container spacing={3}>
                 <Grid size={{ xs: 12, md: 7 }}>
-                    <Paper elevation={0} className="animate-fade-in-up stagger-1" sx={{ p: 4, border: `1px solid ${theme.palette.divider}` }}>
+                    <Paper elevation={0} className="animate-fade-in-up stagger-1" sx={{ p: { xs: 3, md: 4 }, border: `1px solid ${theme.palette.divider}` }}>
                         <form onSubmit={handleSubmit}>
-                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                <TextField fullWidth label="Full Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} error={!!errors.name} helperText={errors.name} required />
-                                <TextField fullWidth label="Phone Number" placeholder="+91 9876543210" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} error={!!errors.phone} helperText={errors.phone || 'For WhatsApp confirmation'} required />
-                                <TextField fullWidth label="Email (optional)" type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} error={!!errors.email} helperText={errors.email} />
-                                <Alert severity="info">Your info is only used for booking confirmation.</Alert>
-                                <Button type="submit" variant="contained" size="large" endIcon={<ArrowForwardIcon />} sx={{ mt: 1, py: 1.5 }}>
-                                    Proceed to Payment
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+                                <TextField size="small" fullWidth label="Full Name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} error={!!errors.name} helperText={errors.name} required />
+                                <TextField size="small" fullWidth label="Phone Number" placeholder="+91 9876543210" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} error={!!errors.phone} helperText={errors.phone || 'For WhatsApp confirmation'} required />
+                                <TextField size="small" fullWidth label="Email (optional)" type="email" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} error={!!errors.email} helperText={errors.email} />
+                                <Alert severity="info" sx={{ fontSize: '0.82rem' }}>Your info is only used for booking confirmation.</Alert>
+                                <Button type="submit" variant="contained" size="large" endIcon={<ArrowForwardIcon />} sx={{ mt: 1, py: 1.3 }}>
+                                    Continue to payment
                                 </Button>
                             </Box>
                         </form>

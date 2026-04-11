@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    Box, Typography, Grid, CircularProgress, Alert, Button,
-    ToggleButtonGroup, ToggleButton, useTheme
+    Box, Typography, Grid, CircularProgress, Alert, Button, useTheme
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import NewspaperIcon from '@mui/icons-material/Newspaper';
 import ArticleCard from './ArticleCard';
 import { getNews } from '../../services/newsApi';
+import { trackNewsEvent } from '../../services/newsAnalytics';
 import { CATEGORY_CONFIG } from '../../types/news';
 import type { NewsArticle, DateFilter } from '../../types/news';
 
@@ -50,32 +51,50 @@ const NewsFeed: React.FC = () => {
         }
     }, [dateFilter, category, page]);
 
-    // Reset when filters change
+    // Track tab open on mount
+    useEffect(() => { trackNewsEvent('tab_open'); }, []);
+
     useEffect(() => {
         setPage(0);
         setHasMore(true);
         load(true);
     }, [dateFilter, category]);
 
+    const pillSx = (isActive: boolean, color?: string) => ({
+        flexShrink: 0,
+        px: 1.8, py: 0.6,
+        borderRadius: '20px',
+        cursor: 'pointer',
+        fontSize: '0.78rem',
+        fontWeight: isActive ? 700 : 500,
+        border: `1.5px solid ${isActive ? (color ?? theme.palette.primary.main) : theme.palette.divider}`,
+        bgcolor: isActive ? `${color ?? theme.palette.primary.main}18` : 'transparent',
+        color: isActive ? (color ?? theme.palette.primary.main) : 'text.secondary',
+        transition: 'all 0.2s ease',
+        whiteSpace: 'nowrap',
+        userSelect: 'none',
+        '&:hover': {
+            borderColor: color ?? theme.palette.primary.main,
+            bgcolor: `${color ?? theme.palette.primary.main}10`,
+        },
+    });
+
     return (
         <Box>
-            {/* Date filter */}
-            <Box sx={{ mb: 2 }}>
-                <ToggleButtonGroup
-                    value={dateFilter}
-                    exclusive
-                    onChange={(_, v) => v && setDateFilter(v)}
-                    size="small"
-                >
-                    {DATE_OPTIONS.map(d => (
-                        <ToggleButton key={d.value} value={d.value} sx={{ px: 2, textTransform: 'none', fontSize: '0.8rem' }}>
-                            {d.label}
-                        </ToggleButton>
-                    ))}
-                </ToggleButtonGroup>
+            {/* Date filter pills */}
+            <Box sx={{ mb: 2, display: 'flex', gap: 0.75, overflowX: 'auto', pb: 0.5, '::-webkit-scrollbar': { display: 'none' } }}>
+                {DATE_OPTIONS.map(d => (
+                    <Box
+                        key={d.value}
+                        onClick={() => { setDateFilter(d.value); trackNewsEvent('date_filter', { filter: d.value }); }}
+                        sx={pillSx(dateFilter === d.value)}
+                    >
+                        {d.label}
+                    </Box>
+                ))}
             </Box>
 
-            {/* Category tabs */}
+            {/* Category pills */}
             <Box sx={{ mb: 3, overflowX: 'auto', display: 'flex', gap: 0.75, pb: 0.5, '::-webkit-scrollbar': { display: 'none' } }}>
                 {CATEGORIES.map(cat => {
                     const cfg = CATEGORY_CONFIG[cat];
@@ -83,20 +102,8 @@ const NewsFeed: React.FC = () => {
                     return (
                         <Box
                             key={cat}
-                            onClick={() => setCategory(cat)}
-                            sx={{
-                                flexShrink: 0,
-                                px: 1.5, py: 0.5,
-                                borderRadius: 2,
-                                cursor: 'pointer',
-                                fontSize: '0.75rem',
-                                fontWeight: isActive ? 700 : 400,
-                                border: `1px solid ${isActive ? (cfg?.color ?? theme.palette.primary.main) : theme.palette.divider}`,
-                                bgcolor: isActive ? `${cfg?.color ?? theme.palette.primary.main}15` : 'transparent',
-                                color: isActive ? (cfg?.color ?? 'primary.main') : 'text.secondary',
-                                transition: 'all 0.15s ease',
-                                whiteSpace: 'nowrap',
-                            }}
+                            onClick={() => { setCategory(cat); trackNewsEvent('category_filter', { category: cat }); }}
+                            sx={pillSx(isActive, cfg?.color)}
                         >
                             {cat === 'all' ? 'All' : cfg?.label}
                         </Box>
@@ -125,8 +132,11 @@ const NewsFeed: React.FC = () => {
             {/* Empty */}
             {!loading && !error && articles.length === 0 && (
                 <Box sx={{ textAlign: 'center', py: 8 }}>
-                    <Typography variant="body1" color="text.secondary">No articles found for this filter.</Typography>
-                    <Typography variant="caption" color="text.disabled">News is fetched 4 times a day — check back later.</Typography>
+                    <NewspaperIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5 }} />
+                    <Typography variant="body1" color="text.secondary" fontWeight={500}>No articles found</Typography>
+                    <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+                        News is fetched 4 times a day — try a different filter or check back later.
+                    </Typography>
                 </Box>
             )}
 
@@ -136,19 +146,19 @@ const NewsFeed: React.FC = () => {
                     <Grid container spacing={2}>
                         {articles.map(a => (
                             <Grid size={{ xs: 12, sm: 6, md: 4 }} key={a.id}>
-                                <ArticleCard article={a} />
+                                <ArticleCard article={a} onArticleClick={() => trackNewsEvent('article_click', { title: a.title, category: a.category, articleId: a.id })} />
                             </Grid>
                         ))}
                     </Grid>
 
-                    {/* Load more */}
                     {hasMore && (
-                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
                             <Button
                                 variant="outlined"
-                                onClick={() => load(false)}
+                                onClick={() => { load(false); trackNewsEvent('load_more'); }}
                                 disabled={loadingMore}
                                 startIcon={loadingMore ? <CircularProgress size={16} /> : undefined}
+                                sx={{ borderRadius: '20px', px: 3 }}
                             >
                                 {loadingMore ? 'Loading...' : 'Load More'}
                             </Button>

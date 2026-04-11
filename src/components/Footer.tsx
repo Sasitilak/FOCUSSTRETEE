@@ -1,91 +1,76 @@
 import React from 'react';
 import { Box, Typography, Container, Grid, Link, Divider, Stack, useTheme } from '@mui/material';
 import { Link as RouterLink } from 'react-router-dom';
-import EmailIcon from '@mui/icons-material/Email';
-import PhoneIcon from '@mui/icons-material/Phone';
 
 const Footer: React.FC = () => {
     const theme = useTheme();
-    const isDark = theme.palette.mode === 'dark';
+
+    const linkSx = { fontSize: '0.85rem', textDecoration: 'none', color: 'text.secondary', '&:hover': { color: 'text.primary' } };
 
     return (
         <Box
             component="footer"
             sx={{
-                py: { xs: 6, md: 8 },
+                py: { xs: 5, md: 6 },
                 mt: 'auto',
                 borderTop: `1px solid ${theme.palette.divider}`,
-                bgcolor: isDark ? 'background.paper' : '#f9fafb',
             }}
         >
             <Container maxWidth="lg">
                 <Grid container spacing={4}>
-                    {/* Brand & Description */}
-                    <Grid size={{ xs: 12, md: 4 }}>
-                        <Typography variant="h6" fontWeight={800} color="primary.main" gutterBottom>
-                            Acumen Hive
+                    <Grid size={{ xs: 12, md: 5 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                            <Box component="img" src="/logo.svg" alt="" sx={{ width: 28, height: 28 }} />
+                            <Typography variant="subtitle1" fontWeight={700}>Acumen Hive</Typography>
+                        </Box>
+                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 340, lineHeight: 1.7 }}>
+                            Study spaces for competitive exam aspirants. Quiet environments, dedicated desks, and flexible booking.
                         </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ mb: 2, maxWidth: 300, lineHeight: 1.7 }}>
-                            Premium study spaces designed for deep focus and maximum productivity. Quiet zones, focus rooms, and cabins across our prime branches.
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                            Your data is safe with us. We won't use it for anything other than your booking confirmation.
-                        </Typography>
-                    </Grid>
-
-                    {/* Quick Links */}
-                    <Grid size={{ xs: 6, md: 2 }}>
-                        <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-                            Explore
-                        </Typography>
-                        <Stack spacing={1.5}>
-                            <Link component={RouterLink} to="/" color="text.secondary" sx={{ fontSize: '0.85rem', textDecoration: 'none', '&:hover': { color: 'primary.main' } }}>Home</Link>
-                            <Link component={RouterLink} to="/slots" color="text.secondary" sx={{ fontSize: '0.85rem', textDecoration: 'none', '&:hover': { color: 'primary.main' } }}>Book Now</Link>
+                        <Stack direction="row" spacing={3}>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                                +91 81435 35390
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                acumenhive@gmail.com
+                            </Typography>
                         </Stack>
                     </Grid>
 
-                    {/* Legal */}
                     <Grid size={{ xs: 6, md: 2 }}>
-                        <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.65rem' }}>
+                            Product
+                        </Typography>
+                        <Stack spacing={1.2}>
+                            <Link component={RouterLink} to="/" sx={linkSx}>Home</Link>
+                            <Link component={RouterLink} to="/slots" sx={linkSx}>Book a seat</Link>
+                        </Stack>
+                    </Grid>
+
+                    <Grid size={{ xs: 6, md: 2 }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.65rem' }}>
                             Legal
                         </Typography>
-                        <Stack spacing={1.5}>
-                            <Link component={RouterLink} to="/privacy" color="text.secondary" sx={{ fontSize: '0.85rem', textDecoration: 'none', '&:hover': { color: 'primary.main' } }}>Privacy Policy</Link>
-                            <Link component={RouterLink} to="/terms" color="text.secondary" sx={{ fontSize: '0.85rem', textDecoration: 'none', '&:hover': { color: 'primary.main' } }}>Terms & Condition</Link>
+                        <Stack spacing={1.2}>
+                            <Link component={RouterLink} to="/privacy" sx={linkSx}>Privacy</Link>
+                            <Link component={RouterLink} to="/terms" sx={linkSx}>Terms</Link>
                         </Stack>
                     </Grid>
 
-                    {/* Contact */}
-                    <Grid size={{ xs: 12, md: 4 }}>
-                        <Typography variant="subtitle2" fontWeight={700} gutterBottom>
-                            Contact & Support
+                    <Grid size={{ xs: 12, md: 3 }}>
+                        <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 1.5, display: 'block', textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.65rem' }}>
+                            Support
                         </Typography>
-                        <Stack spacing={2}>
-                            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5 }}>
-                                <PhoneIcon sx={{ fontSize: 20, color: 'primary.main', mt: 0.2 }} />
-                                <Box>
-                                    <Typography variant="body2" fontWeight={500}>For any queries, refunds, or support, please contact:</Typography>
-                                    <Typography variant="h6" color="primary.main" fontWeight={700} sx={{ mt: 0.5 }}>+91 81435 35390</Typography>
-                                </Box>
-                            </Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                                <EmailIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                                <Typography variant="body2" color="text.secondary">acumenhive@gmail.com</Typography>
-                            </Box>
-                        </Stack>
+                        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                            For queries, refunds, or support — call or WhatsApp us directly.
+                        </Typography>
                     </Grid>
                 </Grid>
 
-                <Divider sx={{ my: 4 }} />
+                <Divider sx={{ my: 3 }} />
 
-                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, justifyContent: 'space-between', alignItems: 'center', gap: 2 }}>
-                    <Typography variant="caption" color="text.secondary">
-                        © {new Date().getFullYear()} Acumen Hive. All rights reserved.
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                        Powering Focus. Built for Aspirants.
-                    </Typography>
-                </Box>
+                <Typography variant="caption" color="text.secondary">
+                    &copy; {new Date().getFullYear()} Acumen Hive. All rights reserved.
+                </Typography>
             </Container>
         </Box>
     );

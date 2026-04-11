@@ -21,6 +21,7 @@ import AdminHolidays from './pages/admin/AdminHolidays';
 import AdminAnnouncements from './pages/admin/AdminAnnouncements';
 import AdminLocations from './pages/admin/AdminLocations';
 import AdminLayoutBuilder from './pages/admin/AdminLayoutBuilder';
+import AdminNewsAnalytics from './pages/admin/AdminNewsAnalytics';
 import AdminLogin from './pages/admin/AdminLogin';
 import MaintenanceGuard from './components/MaintenanceGuard';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -85,6 +86,7 @@ const AppContent: React.FC = () => {
               <Route path="announcements" element={<AdminAnnouncements />} />
               <Route path="locations" element={<AdminLocations />} />
               <Route path="layout" element={<AdminLayoutBuilder />} />
+              <Route path="news-analytics" element={<AdminNewsAnalytics />} />
             </Route>
           </Routes>
         </BookingProvider>

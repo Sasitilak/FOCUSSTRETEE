@@ -307,7 +307,7 @@ const LocationSelectionPage: React.FC = () => {
                                                                 exit={{ opacity: 0, height: 0, marginTop: 0 }}
                                                                 sx={{ width: '100%', overflow: 'hidden' }}
                                                             >
-                                                                <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, border: `1.5px solid ${theme.palette.primary.main}30`, bgcolor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.01)' }}>
+                                                                <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, border: `3px solid ${theme.palette.primary.main}60`, background: isDark ? 'linear-gradient(145deg, rgba(245,158,11,0.08) 0%, rgba(251,146,60,0.04) 50%, rgba(19,19,22,0.9) 100%)' : 'linear-gradient(145deg, rgba(245,158,11,0.06) 0%, rgba(251,146,60,0.03) 50%, rgba(255,255,255,0.95) 100%)', boxShadow: isDark ? '0 6px 32px rgba(245,158,11,0.12)' : '0 6px 32px rgba(245,158,11,0.08)' }}>
                                                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                                                                         <Typography variant="subtitle2" fontWeight={700}>Select a Seat in {room.name}</Typography>
                                                                         <Chip label={`${roomAvail} available`} size="small" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.6rem' }} />
@@ -329,23 +329,18 @@ const LocationSelectionPage: React.FC = () => {
                                                                         />
                                                                     )}
 
-                                                                    <Box sx={{ mt: 2.5, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
-                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: '#22c55e' }} />
-                                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Selected</Typography>
-                                                                        </Box>
-                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: isDark ? 'rgba(0,173,181,0.25)' : 'rgba(59,172,182,0.2)' }} />
-                                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Available</Typography>
-                                                                        </Box>
-                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: '#ef4444' }} />
-                                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Occupied</Typography>
-                                                                        </Box>
-                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: '#ec4899' }} />
-                                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Ladies</Typography>
-                                                                        </Box>
+                                                                    <Box sx={{ mt: 2.5, display: 'flex', gap: 2.5, flexWrap: 'wrap', justifyContent: 'center' }}>
+                                                                        {[
+                                                                            { color: '#1ea84b', label: 'Available' },
+                                                                            { color: '#2196f3', label: 'Selected' },
+                                                                            { color: '#ff0000', label: 'Occupied' },
+                                                                            { color: '#ec4899', label: 'Ladies' },
+                                                                        ].map(item => (
+                                                                            <Box key={item.label} sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                                <Box sx={{ width: 12, height: 12, borderRadius: '3px', bgcolor: item.color }} />
+                                                                                <Typography variant="caption" sx={{ fontSize: '0.62rem', color: 'text.secondary' }}>{item.label}</Typography>
+                                                                            </Box>
+                                                                        ))}
                                                                     </Box>
                                                                 </Paper>
                                                             </MotionBox>

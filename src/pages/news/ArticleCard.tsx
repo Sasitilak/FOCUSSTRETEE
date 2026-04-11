@@ -7,9 +7,10 @@ import { timeAgo } from '../../utils/newsHelpers';
 
 interface Props {
     article: NewsArticle;
+    onArticleClick?: () => void;
 }
 
-const ArticleCard: React.FC<Props> = ({ article }) => {
+const ArticleCard: React.FC<Props> = ({ article, onArticleClick }) => {
     const theme = useTheme();
     const [imgError, setImgError] = useState(false);
     const cfg = CATEGORY_CONFIG[article.category] ?? CATEGORY_CONFIG.general;
@@ -20,6 +21,7 @@ const ArticleCard: React.FC<Props> = ({ article }) => {
             href={article.url ?? undefined}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => onArticleClick?.()}
             sx={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -45,7 +47,7 @@ const ArticleCard: React.FC<Props> = ({ article }) => {
                     src={article.image_url}
                     alt={article.title}
                     onError={() => setImgError(true)}
-                    sx={{ width: '100%', height: 'auto', maxHeight: 220, objectFit: 'contain', display: 'block', flexShrink: 0, bgcolor: theme.palette.mode === 'dark' ? '#1a1d26' : '#f5f5f5' }}
+                    sx={{ width: '100%', height: 180, objectFit: 'cover', display: 'block', flexShrink: 0 }}
                 />
             ) : (
                 <Box
