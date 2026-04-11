@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, Card, CardContent, Grid, Button,
     Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-    LinearProgress, Alert, Snackbar, useTheme, DialogContentText, Divider
+    LinearProgress, Alert, Snackbar, useTheme, DialogContentText, Tabs, Tab
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import ImageIcon from '@mui/icons-material/Image';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { getAdminBookings, approveBooking, rejectBooking, getBranches } from '../../services/api';
 import type { BookingResponse, Branch } from '../../types/booking';
 
@@ -52,8 +53,28 @@ Reference ID: ${b.id}
 You may submit a new request or contact support if needed.`;
 };
 
+const buildRenewalMessage = (b: BookingResponse): string => {
+    const location = buildLocationText(b);
+    const endDate = b.endDate ? new Date(b.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'soon';
+    return `Hello ${b.customerName ?? 'Customer'},
+
+Your booking at AcumenHive (${location}) is expiring on *${endDate}*.
+
+We'd love to have you continue! Please renew your booking to keep your seat reserved.
+
+Renew here: https://acumenhive.vercel.app
+
+If you have any questions, feel free to reach out. Thank you!`;
+};
+
 const openWhatsApp = (b: BookingResponse, type: 'approved' | 'rejected', mapsUrl?: string) => {
     const msg = type === 'approved' ? buildConfirmationMessage(b, mapsUrl) : buildRejectionMessage(b);
+    const link = buildWhatsAppLink(b.customerPhone ?? '', msg);
+    window.open(link, '_blank');
+};
+
+const openRenewalWhatsApp = (b: BookingResponse) => {
+    const msg = buildRenewalMessage(b);
     const link = buildWhatsAppLink(b.customerPhone ?? '', msg);
     window.open(link, '_blank');
 };
@@ -109,6 +130,7 @@ const AdminApprovals: React.FC = () => {
     const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'approve' | 'reject' } | null>(null);
     // Tracks bookings acted on THIS session (cleared on page leave/refresh)
     const [sessionProcessed, setSessionProcessed] = useState<{ [id: string]: 'approved' | 'rejected' }>({});
+    const [activeTab, setActiveTab] = useState(0);
 
     const getMapsUrl = (b: BookingResponse) =>
         branches.find(br => br.id === b.location?.branch)?.mapsUrl;
@@ -133,6 +155,15 @@ const AdminApprovals: React.FC = () => {
     const confirmed = bookings.filter(b => b.status === 'confirmed');
     // Bookings acted on this session (for "recently processed" strip)
     const recentlyProcessed = bookings.filter(b => sessionProcessed[b.id]);
+
+    // Expiring soon: confirmed bookings with endDate within next 7 days (or already expired)
+    const now = new Date();
+    const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const expiringSoon = confirmed.filter(b => {
+        if (!b.endDate) return false;
+        const end = new Date(b.endDate);
+        return end <= sevenDaysLater;
+    }).sort((a, b) => new Date(a.endDate!).getTime() - new Date(b.endDate!).getTime());
 
     const handleApprove = async (id: string) => {
         setProcessing(id);
@@ -178,78 +209,216 @@ const AdminApprovals: React.FC = () => {
 
     if (loading) return <Box><LinearProgress /></Box>;
 
+    const tabCounts = {
+        pending: pending.length,
+        expiring: expiringSoon.length,
+        recent: recentlyProcessed.length,
+        approved: confirmed.length,
+    };
+
     return (
         <Box>
             <Typography variant="h5" fontWeight={700} gutterBottom>Payment Approvals</Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Review payment screenshots and approve or reject bookings</Typography>
-            <Chip label={`${pending.length} pending`} color="warning" size="small" sx={{ mb: 3, fontWeight: 500 }} />
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>Review payment screenshots, approve/reject bookings, and track renewals</Typography>
 
-            {/* ── PENDING SECTION ── */}
-            {pending.length === 0 ? (
-                <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
-                    <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
-                    <Typography variant="h6" fontWeight={600}>All caught up!</Typography>
-                    <Typography variant="body2" color="text.secondary">No pending approvals right now</Typography>
-                </Paper>
-            ) : (
-                <Grid container spacing={2}>
-                    {pending.map((b, i) => (
-                        <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
-                            <Card
-                                className={`animate-fade-in-up stagger-${Math.min(i + 1, 5)}`}
-                                sx={{ border: `1px solid ${theme.palette.divider}`, transition: 'transform 0.3s', '&:hover': { transform: 'translateY(-3px)' } }}
-                            >
-                                <CardContent sx={{ p: 2.5 }}>
-                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                                        <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
-                                        <Chip label="Pending" color="warning" size="small" />
-                                    </Box>
-                                    <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
-                                    <BookingInfoBox b={b} theme={theme} />
-                                    <Button
-                                        fullWidth variant="outlined" size="small"
-                                        startIcon={<ImageIcon />}
-                                        onClick={() => setViewScreenshot(b)}
-                                        disabled={!b.paymentScreenshotUrl}
-                                        sx={{ mb: 2 }}
+            {/* ── TABS ── */}
+            <Tabs
+                value={activeTab}
+                onChange={(_, v) => setActiveTab(v)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{
+                    mb: 3,
+                    borderBottom: `1px solid ${theme.palette.divider}`,
+                    '& .MuiTab-root': {
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        minHeight: 48,
+                    },
+                    '& .Mui-selected': {
+                        color: '#f59e0b !important',
+                    },
+                    '& .MuiTabs-indicator': {
+                        backgroundColor: '#f59e0b',
+                    },
+                }}
+            >
+                <Tab label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        Pending
+                        {tabCounts.pending > 0 && <Chip label={tabCounts.pending} size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />}
+                    </Box>
+                } />
+                <Tab label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AccessTimeIcon sx={{ fontSize: 18 }} />
+                        Expiring Soon
+                        {tabCounts.expiring > 0 && <Chip label={tabCounts.expiring} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#f59e0b', color: '#000' }} />}
+                    </Box>
+                } />
+                {tabCounts.recent > 0 && (
+                    <Tab label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            Recently Processed
+                            <Chip label={tabCounts.recent} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#25D366', color: '#fff' }} />
+                        </Box>
+                    } />
+                )}
+                <Tab label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        All Approved
+                        {tabCounts.approved > 0 && <Chip label={tabCounts.approved} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />}
+                    </Box>
+                } />
+            </Tabs>
+
+            {/* ── TAB 0: PENDING ── */}
+            {activeTab === 0 && (
+                <>
+                    {pending.length === 0 ? (
+                        <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
+                            <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main', mb: 2 }} />
+                            <Typography variant="h6" fontWeight={600}>All caught up!</Typography>
+                            <Typography variant="body2" color="text.secondary">No pending approvals right now</Typography>
+                        </Paper>
+                    ) : (
+                        <Grid container spacing={2}>
+                            {pending.map((b, i) => (
+                                <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
+                                    <Card
+                                        className={`animate-fade-in-up stagger-${Math.min(i + 1, 5)}`}
+                                        sx={{ border: `1px solid ${theme.palette.divider}`, transition: 'transform 0.3s', '&:hover': { transform: 'translateY(-3px)' } }}
                                     >
-                                        {b.paymentScreenshotUrl ? 'View Screenshot' : 'No Screenshot'}
-                                    </Button>
-                                    <Box sx={{ display: 'flex', gap: 1 }}>
-                                        <Button
-                                            fullWidth variant="contained" color="success" size="small"
-                                            startIcon={<CheckCircleIcon />}
-                                            onClick={() => setConfirmAction({ id: b.id, type: 'approve' })}
-                                            disabled={processing === b.id}
-                                        >
-                                            Approve
-                                        </Button>
-                                        <Button
-                                            fullWidth variant="outlined" color="error" size="small"
-                                            startIcon={<CancelIcon />}
-                                            onClick={() => setConfirmAction({ id: b.id, type: 'reject' })}
-                                            disabled={processing === b.id}
-                                        >
-                                            Reject
-                                        </Button>
-                                    </Box>
-                                </CardContent>
-                            </Card>
+                                        <CardContent sx={{ p: 2.5 }}>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                                <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
+                                                <Chip label="Pending" color="warning" size="small" />
+                                            </Box>
+                                            <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
+                                            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
+                                            <BookingInfoBox b={b} theme={theme} />
+                                            <Button
+                                                fullWidth variant="outlined" size="small"
+                                                startIcon={<ImageIcon />}
+                                                onClick={() => setViewScreenshot(b)}
+                                                disabled={!b.paymentScreenshotUrl}
+                                                sx={{ mb: 2 }}
+                                            >
+                                                {b.paymentScreenshotUrl ? 'View Screenshot' : 'No Screenshot'}
+                                            </Button>
+                                            <Box sx={{ display: 'flex', gap: 1 }}>
+                                                <Button
+                                                    fullWidth variant="contained" color="success" size="small"
+                                                    startIcon={<CheckCircleIcon />}
+                                                    onClick={() => setConfirmAction({ id: b.id, type: 'approve' })}
+                                                    disabled={processing === b.id}
+                                                >
+                                                    Approve
+                                                </Button>
+                                                <Button
+                                                    fullWidth variant="outlined" color="error" size="small"
+                                                    startIcon={<CancelIcon />}
+                                                    onClick={() => setConfirmAction({ id: b.id, type: 'reject' })}
+                                                    disabled={processing === b.id}
+                                                >
+                                                    Reject
+                                                </Button>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            ))}
                         </Grid>
-                    ))}
-                </Grid>
+                    )}
+                </>
             )}
 
-            {/* ── RECENTLY PROCESSED (session only, gone on page leave) ── */}
-            {recentlyProcessed.length > 0 && (
-                <Box sx={{ mt: 5 }}>
-                    <Divider sx={{ mb: 3 }} />
-                    <Typography variant="h6" fontWeight={700} gutterBottom>
-                        Just Processed — Send Again?
-                    </Typography>
+            {/* ── TAB 1: EXPIRING SOON ── */}
+            {activeTab === 1 && (
+                <>
+                    {expiringSoon.length === 0 ? (
+                        <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
+                            <AccessTimeIcon sx={{ fontSize: 48, color: '#f59e0b', mb: 2 }} />
+                            <Typography variant="h6" fontWeight={600}>No expiring bookings</Typography>
+                            <Typography variant="body2" color="text.secondary">No bookings expiring within the next 7 days</Typography>
+                        </Paper>
+                    ) : (
+                        <>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Bookings expiring within 7 days. Send a renewal reminder via WhatsApp.
+                            </Typography>
+                            <Grid container spacing={2}>
+                                {expiringSoon.map((b) => {
+                                    const endDate = new Date(b.endDate!);
+                                    const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                                    const isExpired = daysLeft <= 0;
+                                    return (
+                                        <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
+                                            <Card sx={{
+                                                border: `2px solid ${isExpired ? '#ef4444' : '#f59e0b'}`,
+                                                borderRadius: 3,
+                                            }}>
+                                                <CardContent sx={{ p: 2.5 }}>
+                                                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                                        <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
+                                                        <Chip
+                                                            label={isExpired ? 'Expired' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
+                                                            size="small"
+                                                            sx={{
+                                                                bgcolor: isExpired ? '#ef4444' : daysLeft <= 3 ? '#f59e0b' : '#22c55e',
+                                                                color: isExpired || daysLeft <= 3 ? '#000' : '#fff',
+                                                                fontWeight: 700,
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                    <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
+                                                    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
+                                                    <Box sx={{ my: 2, p: 2, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+                                                        {[
+                                                            ['Location', buildLocationText(b)],
+                                                            ['Seat', b.location?.seatNo ? `Seat ${b.location.seatNo}` : '-'],
+                                                            ['Plan', b.slotTime],
+                                                            ['Expires', endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })],
+                                                        ].map(([k, v]) => (
+                                                            <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                                                <Typography variant="caption" color="text.secondary">{k}</Typography>
+                                                                <Typography variant="body2" fontWeight={500}>{v}</Typography>
+                                                            </Box>
+                                                        ))}
+                                                    </Box>
+                                                    <Button
+                                                        fullWidth
+                                                        variant="contained"
+                                                        size="small"
+                                                        startIcon={<WhatsAppIcon />}
+                                                        onClick={() => openRenewalWhatsApp(b)}
+                                                        sx={{
+                                                            bgcolor: '#25D366',
+                                                            '&:hover': { bgcolor: '#1ebe5d' },
+                                                            color: '#fff',
+                                                            fontWeight: 600,
+                                                            borderRadius: 2,
+                                                        }}
+                                                    >
+                                                        Send Renewal Reminder
+                                                    </Button>
+                                                </CardContent>
+                                            </Card>
+                                        </Grid>
+                                    );
+                                })}
+                            </Grid>
+                        </>
+                    )}
+                </>
+            )}
+
+            {/* ── TAB 2: RECENTLY PROCESSED (only visible when there are items) ── */}
+            {activeTab === 2 && tabCounts.recent > 0 && (
+                <>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        These were processed this session. Click to re-send the WhatsApp message if needed. This section resets when you leave the page.
+                        Processed this session. Click to re-send the WhatsApp message. Resets when you leave the page.
                     </Typography>
                     <Grid container spacing={2}>
                         {recentlyProcessed.map((b) => (
@@ -281,41 +450,48 @@ const AdminApprovals: React.FC = () => {
                             </Grid>
                         ))}
                     </Grid>
-                </Box>
+                </>
             )}
 
-            {/* ── APPROVED HISTORY ── */}
-            {confirmed.length > 0 && (
-                <Box sx={{ mt: 5 }}>
-                    <Divider sx={{ mb: 3 }} />
-                    <Typography variant="h6" fontWeight={700} gutterBottom>Approved Bookings</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                        All confirmed bookings. Use "Send Again" if the customer didn't receive the message.
-                    </Typography>
-                    <Grid container spacing={2}>
-                        {confirmed.map((b) => (
-                            <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
-                                <Card sx={{ border: `1px solid ${theme.palette.divider}`, opacity: 0.9 }}>
-                                    <CardContent sx={{ p: 2.5 }}>
-                                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                                            <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
-                                            <Chip label="Confirmed" color="success" size="small" />
-                                        </Box>
-                                        <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
-                                        <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
-                                        <BookingInfoBox b={b} theme={theme} />
-                                        <WhatsAppButton
-                                            booking={b}
-                                            type="approved"
-                                            label={`Send Again to ${(b.customerName ?? 'Customer').split(' ')[0]}`}
-                                            mapsUrl={getMapsUrl(b)}
-                                        />
-                                    </CardContent>
-                                </Card>
+            {/* ── TAB: ALL APPROVED ── */}
+            {activeTab === (tabCounts.recent > 0 ? 3 : 2) && (
+                <>
+                    {confirmed.length === 0 ? (
+                        <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
+                            <Typography variant="h6" fontWeight={600}>No approved bookings yet</Typography>
+                            <Typography variant="body2" color="text.secondary">Approved bookings will appear here</Typography>
+                        </Paper>
+                    ) : (
+                        <>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                All confirmed bookings. Use "Send Again" if the customer didn't receive the message.
+                            </Typography>
+                            <Grid container spacing={2}>
+                                {confirmed.map((b) => (
+                                    <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
+                                        <Card sx={{ border: `1px solid ${theme.palette.divider}`, opacity: 0.9 }}>
+                                            <CardContent sx={{ p: 2.5 }}>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                                    <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
+                                                    <Chip label="Confirmed" color="success" size="small" />
+                                                </Box>
+                                                <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
+                                                <BookingInfoBox b={b} theme={theme} />
+                                                <WhatsAppButton
+                                                    booking={b}
+                                                    type="approved"
+                                                    label={`Send Again to ${(b.customerName ?? 'Customer').split(' ')[0]}`}
+                                                    mapsUrl={getMapsUrl(b)}
+                                                />
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                ))}
                             </Grid>
-                        ))}
-                    </Grid>
-                </Box>
+                        </>
+                    )}
+                </>
             )}
 
             {/* ── Screenshot Dialog ── */}
