@@ -109,7 +109,7 @@ const AdminBookings: React.FC = () => {
                     <Table size="small">
                         <TableHead>
                             <TableRow>
-                                {['ID', 'Customer', 'Phone', 'Branch', 'Fl/Rm', 'From', 'To', 'Amount', 'Status', 'Actions'].map(h => (
+                                {['ID', 'Customer', 'Phone', 'Branch', 'Fl/Rm/Seat', 'From', 'To', 'Amount', 'Status', 'Actions'].map(h => (
                                     <TableCell key={h} sx={{ fontWeight: 600, color: 'text.secondary', fontSize: '0.75rem', textTransform: 'uppercase' }}>{h}</TableCell>
                                 ))}
                             </TableRow>
@@ -121,7 +121,7 @@ const AdminBookings: React.FC = () => {
                                     <TableCell sx={{ fontWeight: 500 }}>{b.customerName || '—'}</TableCell>
                                     <TableCell>{b.customerPhone || '—'}</TableCell>
                                     <TableCell sx={{ fontSize: '0.85rem' }}>{b.location.branchName || `Branch ${b.location.branch}`}</TableCell>
-                                    <TableCell sx={{ fontSize: '0.85rem' }}>F{b.location.floor} / {b.location.roomNo}</TableCell>
+                                    <TableCell sx={{ fontSize: '0.85rem' }}>F{b.location.floor} / {b.location.roomNo} / {b.location.seatNo}</TableCell>
                                     <TableCell sx={{ fontSize: '0.85rem' }}>{b.startDate || b.slotDate}</TableCell>
                                     <TableCell sx={{ fontSize: '0.85rem' }}>{b.endDate || '—'}</TableCell>
                                     <TableCell sx={{ fontWeight: 600 }}>₹{b.amount}</TableCell>

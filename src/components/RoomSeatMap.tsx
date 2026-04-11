@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, useTheme } from '@mui/material';
+import { Box, Typography, Tooltip, useTheme } from '@mui/material';
 import { motion } from 'framer-motion';
 import ChairIcon from '@mui/icons-material/Chair';
 import type { Room, Seat, RoomElement, SeatPosition } from '../types/booking';
@@ -29,14 +29,11 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
         if (seat) seatGrid.set(`${sp.gridRow}-${sp.gridCol}`, seat);
     });
 
-
-
-    // ── Wall/entrance detection (checks direct + adjacent cell's shared side) ──
+    // ── Wall/entrance detection ──
     const hasElementAt = (type: string, row: number, col: number, side: string): boolean => {
         return elements.some(e => e.type === type && e.gridRow === row && e.gridCol === col && e.side === side);
     };
 
-    // Check if a shared edge has a wall (either side)
     const isWallEdge = (row: number, col: number, side: string): boolean => {
         if (hasElementAt('wall', row, col, side)) return true;
         if (side === 'right' && col < gridCols - 1) return hasElementAt('wall', row, col + 1, 'left');
@@ -55,38 +52,67 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
         return false;
     };
 
-    // ── Border style: only render right/bottom borders to avoid doubles ──
-    // Left/top only rendered for edge-of-grid cells
     const wallColor = isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.45)';
     const entranceColor = '#00e676';
 
     const getCellBorders = (row: number, col: number): React.CSSProperties => {
         const style: React.CSSProperties = {};
-
-        // Right border
         if (isWallEdge(row, col, 'right')) style.borderRight = `3px solid ${wallColor}`;
         else if (isEntranceEdge(row, col, 'right')) style.borderRight = `6px solid ${entranceColor}`;
-
-        // Bottom border
         if (isWallEdge(row, col, 'bottom')) style.borderBottom = `3px solid ${wallColor}`;
         else if (isEntranceEdge(row, col, 'bottom')) style.borderBottom = `6px solid ${entranceColor}`;
-
-        // Left border — walls only at grid boundary, but entrances always
         if (isEntranceEdge(row, col, 'left')) style.borderLeft = `6px solid ${entranceColor}`;
         else if (col === 0 && isWallEdge(row, col, 'left')) style.borderLeft = `3px solid ${wallColor}`;
-
-        // Top border — walls only at grid boundary, but entrances always
         if (isEntranceEdge(row, col, 'top')) style.borderTop = `6px solid ${entranceColor}`;
         else if (row === 0 && isWallEdge(row, col, 'top')) style.borderTop = `3px solid ${wallColor}`;
-
         return style;
     };
 
-    // Check if layout has any positioned seats
+    // Color logic for a seat
+    const getSeatColors = (seat: Seat, isSelected: boolean) => {
+        if (isSelected) {
+            // Selected — bright green full tile
+            return {
+                bg: '#22c55e',
+                hoverBg: '#16a34a',
+                iconColor: '#fff',
+                textColor: '#fff',
+                opacity: 1,
+            };
+        }
+        if (!seat.available) {
+            // Occupied — bright red
+            return {
+                bg: '#ef4444',
+                hoverBg: '#dc2626',
+                iconColor: '#fff',
+                textColor: '#fff',
+                opacity: 1,
+            };
+        }
+        if (seat.isLadies) {
+            // Ladies — bright pink
+            return {
+                bg: '#ec4899',
+                hoverBg: '#db2777',
+                iconColor: '#fff',
+                textColor: '#fff',
+                opacity: 1,
+            };
+        }
+        // Available — teal
+        return {
+            bg: isDark ? 'rgba(0,173,181,0.25)' : 'rgba(59,172,182,0.2)',
+            hoverBg: isDark ? 'rgba(0,173,181,0.4)' : 'rgba(59,172,182,0.35)',
+            iconColor: theme.palette.primary.main,
+            textColor: theme.palette.text.primary,
+            opacity: 1,
+        };
+    };
+
     const hasLayout = seatPositions.length > 0;
 
     if (!hasLayout) {
-        // Fallback: flat grid — styled to match admin layout
         const fallbackCols = Math.min(Math.ceil(Math.sqrt(room.seats.length * 1.5)), 10);
         return (
             <Box
@@ -95,8 +121,9 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
                     gridTemplateColumns: `repeat(${fallbackCols}, minmax(48px, 64px))`,
                     gap: '1px',
                     border: `2px solid ${theme.palette.text.primary}`,
-                    borderRadius: 1,
+                    borderRadius: 2,
                     p: '1px',
+                    overflow: 'hidden',
                     bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(245,222,179,0.3)',
                     width: 'fit-content',
                     mx: 'auto',
@@ -104,49 +131,45 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
             >
                 {room.seats.map((seat, i) => {
                     const isSelected = selectedSeatId === seat.id;
+                    const colors = getSeatColors(seat, isSelected);
                     return (
-                        <MotionBox
-                            key={seat.id}
-                            initial={{ opacity: 0, scale: 0.9 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: i * 0.012, duration: 0.2 }}
-                            onClick={() => seat.available && onSeatClick(seat)}
-                            sx={{
-                                width: 56, height: 56,
-                                display: 'flex', flexDirection: 'column',
-                                alignItems: 'center', justifyContent: 'center',
-                                cursor: seat.available ? 'pointer' : 'default',
-                                bgcolor: isSelected
-                                    ? (isDark ? 'rgba(46,204,113,0.2)' : 'rgba(46,204,113,0.15)')
-                                    : seat.available
-                                        ? (isDark ? 'rgba(0,173,181,0.2)' : 'rgba(59,172,182,0.15)')
-                                        : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'),
-                                border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                                opacity: seat.available ? 1 : 0.35,
-                                transition: 'all 0.15s ease',
-                                '&:hover': seat.available ? {
-                                    bgcolor: isDark ? 'rgba(0,173,181,0.3)' : 'rgba(59,172,182,0.25)',
-                                } : {},
-                            }}
-                        >
-                            <ChairIcon sx={{
-                                fontSize: 16,
-                                color: isSelected ? '#2ecc71' : 'primary.main',
-                                display: 'block',
-                                mx: 'auto',
-                            }} />
-                            <Typography
-                                variant="caption"
+                        <Tooltip key={seat.id} title={seat.label || ''} arrow disableHoverListener={!seat.label} placement="top">
+                            <MotionBox
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: i * 0.012, duration: 0.2 }}
+                                onClick={() => onSeatClick(seat)}
                                 sx={{
-                                    fontSize: '0.65rem',
-                                    fontWeight: 700,
-                                    lineHeight: 1,
-                                    color: isSelected ? '#2ecc71' : seat.available ? 'text.primary' : 'text.disabled',
+                                    width: 56, height: 56,
+                                    display: 'flex', flexDirection: 'column',
+                                    alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    bgcolor: colors.bg,
+                                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
+                                    opacity: colors.opacity,
+                                    transition: 'all 0.15s ease',
+                                    '&:hover': { bgcolor: colors.hoverBg },
                                 }}
                             >
-                                {seat.seatNo}
-                            </Typography>
-                        </MotionBox>
+                                <ChairIcon sx={{
+                                    fontSize: 16,
+                                    color: colors.iconColor,
+                                    display: 'block',
+                                    mx: 'auto',
+                                }} />
+                                <Typography
+                                    variant="caption"
+                                    sx={{
+                                        fontSize: '0.65rem',
+                                        fontWeight: 700,
+                                        lineHeight: 1,
+                                        color: colors.textColor,
+                                    }}
+                                >
+                                    {seat.seatNo}
+                                </Typography>
+                            </MotionBox>
+                        </Tooltip>
                     );
                 })}
             </Box>
@@ -165,8 +188,9 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
                     mx: 'auto',
                     width: 'fit-content',
                     border: `2px solid ${theme.palette.text.primary}`,
-                    borderRadius: 1,
+                    borderRadius: 2,
                     p: '1px',
+                    overflow: 'hidden',
                     bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(245,222,179,0.3)',
                 }}
             >
@@ -175,6 +199,7 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
                         const seat = seatGrid.get(`${row}-${col}`);
                         const isSelected = seat && selectedSeatId === seat.id;
                         const borders = getCellBorders(row, col);
+                        const colors = seat ? getSeatColors(seat, !!isSelected) : null;
 
                         return (
                             <MotionBox
@@ -182,49 +207,42 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
                                 transition={{ delay: (row * gridCols + col) * 0.002, duration: 0.1 }}
-                                onClick={() => seat && seat.available && onSeatClick(seat)}
+                                onClick={() => seat && onSeatClick(seat)}
                                 sx={{
                                     position: 'relative',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    cursor: seat?.available ? 'pointer' : 'default',
-                                    bgcolor: isSelected
-                                        ? (isDark ? 'rgba(46,204,113,0.2)' : 'rgba(46,204,113,0.15)')
-                                        : seat
-                                            ? seat.available
-                                                ? (isDark ? 'rgba(0,173,181,0.2)' : 'rgba(59,172,182,0.15)')
-                                                : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)')
-                                            : 'transparent',
+                                    cursor: seat ? 'pointer' : 'default',
+                                    bgcolor: colors ? colors.bg : 'transparent',
                                     border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
-                                    // Override with wall/entrance borders
                                     ...borders,
                                     transition: 'all 0.15s ease',
-                                    '&:hover': seat?.available ? {
-                                        bgcolor: isDark ? 'rgba(0,173,181,0.3)' : 'rgba(59,172,182,0.25)',
-                                    } : {},
+                                    '&:hover': seat ? { bgcolor: colors?.hoverBg } : {},
                                 }}
                             >
                                 {seat && (
-                                    <Box sx={{ textAlign: 'center', opacity: seat.available ? 1 : 0.35 }}>
-                                        <ChairIcon sx={{
-                                            fontSize: 16,
-                                            color: isSelected ? '#2ecc71' : 'primary.main',
-                                            display: 'block',
-                                            mx: 'auto',
-                                        }} />
-                                        <Typography
-                                            variant="caption"
-                                            sx={{
-                                                fontSize: '0.65rem',
-                                                fontWeight: 700,
-                                                lineHeight: 1,
-                                                color: isSelected ? '#2ecc71' : seat.available ? 'text.primary' : 'text.disabled',
-                                            }}
-                                        >
-                                            {seat.seatNo}
-                                        </Typography>
-                                    </Box>
+                                    <Tooltip title={seat.label || ''} arrow disableHoverListener={!seat.label} placement="top">
+                                        <Box sx={{ textAlign: 'center', opacity: colors?.opacity }}>
+                                            <ChairIcon sx={{
+                                                fontSize: 16,
+                                                color: colors!.iconColor,
+                                                display: 'block',
+                                                mx: 'auto',
+                                            }} />
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    fontSize: '0.65rem',
+                                                    fontWeight: 700,
+                                                    lineHeight: 1,
+                                                    color: colors!.textColor,
+                                                }}
+                                            >
+                                                {seat.seatNo}
+                                            </Typography>
+                                        </Box>
+                                    </Tooltip>
                                 )}
                             </MotionBox>
                         );

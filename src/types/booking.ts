@@ -22,7 +22,8 @@ export interface Seat {
     seatNo: string;
     available: boolean;
     isBlocked?: boolean;
-    label?: string; // Custom label, e.g., "95"
+    isLadies?: boolean;
+    label?: string;
     blockInfo?: {
         name: string;
         phone: string;

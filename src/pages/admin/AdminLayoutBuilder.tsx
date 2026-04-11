@@ -10,10 +10,12 @@ import ChairIcon from '@mui/icons-material/Chair';
 import BorderAllIcon from '@mui/icons-material/BorderAll';
 import MeetingRoomIcon from '@mui/icons-material/MeetingRoom';
 import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
+import WomanIcon from '@mui/icons-material/Woman';
 import { getBranches, getRoomLayout, saveRoomLayout } from '../../services/api';
+import { supabase } from '../../lib/supabase';
 import type { Branch, RoomElement } from '../../types/booking';
 
-type Tool = 'seat' | 'wall' | 'entrance';
+type Tool = 'seat' | 'wall' | 'entrance' | 'ladies';
 type EdgeSide = 'top' | 'bottom' | 'left' | 'right';
 
 interface PlacedSeat {
@@ -21,6 +23,7 @@ interface PlacedSeat {
     seatNo: string;
     gridRow: number;
     gridCol: number;
+    isLadies?: boolean;
 }
 
 const AdminLayoutBuilder: React.FC = () => {
@@ -71,6 +74,7 @@ const AdminLayoutBuilder: React.FC = () => {
                         seatNo: seat?.seatNo || sp.seatId,
                         gridRow: sp.gridRow,
                         gridCol: sp.gridCol,
+                        isLadies: seat?.isLadies || false,
                     };
                 }).filter(sp => curRoom.seats.some(s => s.id === sp.seatId));
                 setPlacedSeats(positioned);
@@ -84,22 +88,28 @@ const AdminLayoutBuilder: React.FC = () => {
     // Cell click handler
     const handleCellClick = useCallback((row: number, col: number) => {
         if (activeTool === 'seat') {
-            // Toggle seat at this cell
             const existing = placedSeats.find(s => s.gridRow === row && s.gridCol === col);
             if (existing) {
                 setPlacedSeats(prev => prev.filter(s => !(s.gridRow === row && s.gridCol === col)));
             } else {
-                // Only place if we have seats available from the room
                 if (!curRoom) return;
                 const unplacedSeats = curRoom.seats.filter(
                     s => !placedSeats.some(p => p.seatId === s.id)
                 );
                 if (unplacedSeats.length > 0) {
                     const seat = unplacedSeats[0];
-                    setPlacedSeats(prev => [...prev, { seatId: seat.id, seatNo: seat.seatNo, gridRow: row, gridCol: col }]);
+                    setPlacedSeats(prev => [...prev, { seatId: seat.id, seatNo: seat.seatNo, gridRow: row, gridCol: col, isLadies: false }]);
                 } else {
                     setSnackbar({ open: true, msg: 'All seats are already placed! Add more seats in Facility Config first.', severity: 'error' });
                 }
+            }
+        } else if (activeTool === 'ladies') {
+            // Toggle ladies flag on existing seat
+            const existing = placedSeats.find(s => s.gridRow === row && s.gridCol === col);
+            if (existing) {
+                setPlacedSeats(prev => prev.map(s =>
+                    s.gridRow === row && s.gridCol === col ? { ...s, isLadies: !s.isLadies } : s
+                ));
             }
         }
     }, [activeTool, placedSeats, curRoom]);
@@ -141,6 +151,13 @@ const AdminLayoutBuilder: React.FC = () => {
                 side: e.side,
             }));
             await saveRoomLayout(selectedRoomId, gridCols, gridRows, seatPositions, elems);
+
+            // Save is_ladies flag for each seat
+            const ladiesUpdates = placedSeats.map(s =>
+                supabase.from('seats').update({ is_ladies: s.isLadies || false }).eq('id', Number(s.seatId))
+            );
+            await Promise.all(ladiesUpdates);
+
             setSnackbar({ open: true, msg: 'Layout saved successfully!', severity: 'success' });
         } catch (err: any) {
             setSnackbar({ open: true, msg: err.message || 'Failed to save', severity: 'error' });
@@ -261,6 +278,10 @@ const AdminLayoutBuilder: React.FC = () => {
                                         <Tooltip title="Mark Entrance"><MeetingRoomIcon sx={{ fontSize: 18, mr: 0.5 }} /></Tooltip>
                                         Entrance
                                     </ToggleButton>
+                                    <ToggleButton value="ladies">
+                                        <Tooltip title="Toggle Ladies Seat"><WomanIcon sx={{ fontSize: 18, mr: 0.5, color: activeTool === 'ladies' ? '#f472b6' : undefined }} /></Tooltip>
+                                        Ladies
+                                    </ToggleButton>
                                 </ToggleButtonGroup>
 
                                 <Chip
@@ -332,7 +353,12 @@ const AdminLayoutBuilder: React.FC = () => {
                                 Click empty cell to place next unplaced seat. Click existing seat to remove it.
                             </Typography>
                         )}
-                        {activeTool !== 'seat' && (
+                        {activeTool === 'ladies' && (
+                            <Typography variant="caption" sx={{ color: '#ec4899' }}>
+                                Click on a placed seat to toggle it as Ladies reserved.
+                            </Typography>
+                        )}
+                        {(activeTool === 'wall' || activeTool === 'entrance') && (
                             <Typography variant="caption" color="info.main">
                                 Click on cell edges (top/bottom/left/right hover zones) to toggle {activeTool}.
                             </Typography>
@@ -383,7 +409,9 @@ const AdminLayoutBuilder: React.FC = () => {
                                                 justifyContent: 'center',
                                                 cursor: 'pointer',
                                                 bgcolor: seat
-                                                    ? (isDark ? 'rgba(0,173,181,0.2)' : 'rgba(59,172,182,0.15)')
+                                                    ? seat.isLadies
+                                                        ? (isDark ? 'rgba(244,114,182,0.12)' : 'rgba(244,114,182,0.08)')
+                                                        : (isDark ? 'rgba(0,173,181,0.2)' : 'rgba(59,172,182,0.15)')
                                                     : 'transparent',
                                                 border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`,
                                                 transition: 'all 0.15s ease',
@@ -400,7 +428,7 @@ const AdminLayoutBuilder: React.FC = () => {
                                         >
                                             {seat && (
                                                 <Box sx={{ textAlign: 'center' }}>
-                                                    <ChairIcon sx={{ fontSize: 16, color: 'primary.main', display: 'block', mx: 'auto' }} />
+                                                    <ChairIcon sx={{ fontSize: 16, color: seat.isLadies ? '#f472b6' : 'primary.main', display: 'block', mx: 'auto' }} />
                                                     <Typography variant="caption" sx={{ fontSize: '0.65rem', fontWeight: 700, lineHeight: 1 }}>
                                                         {seat.seatNo}
                                                     </Typography>
@@ -486,6 +514,10 @@ const AdminLayoutBuilder: React.FC = () => {
                         <Stack direction="row" spacing={0.5} alignItems="center">
                             <MeetingRoomIcon sx={{ fontSize: 14, color: 'success.main' }} />
                             <Typography variant="caption">Entrance</Typography>
+                        </Stack>
+                        <Stack direction="row" spacing={0.5} alignItems="center">
+                            <Box sx={{ width: 14, height: 14, bgcolor: isDark ? 'rgba(244,114,182,0.12)' : 'rgba(244,114,182,0.08)', border: '1px solid #f472b6', borderRadius: 0.5 }} />
+                            <Typography variant="caption">Ladies</Typography>
                         </Stack>
                     </Box>
                 </Box>

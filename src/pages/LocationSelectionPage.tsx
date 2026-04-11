@@ -331,16 +331,20 @@ const LocationSelectionPage: React.FC = () => {
 
                                                                     <Box sx={{ mt: 2.5, display: 'flex', gap: 2, flexWrap: 'wrap', justifyContent: 'center' }}>
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, border: '2px solid', borderColor: 'primary.main', bgcolor: 'primary.main', opacity: 0.2 }} />
+                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: '#22c55e' }} />
                                                                             <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Selected</Typography>
                                                                         </Box>
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, border: '1px solid', borderColor: theme.palette.divider }} />
+                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: isDark ? 'rgba(0,173,181,0.25)' : 'rgba(59,172,182,0.2)' }} />
                                                                             <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Available</Typography>
                                                                         </Box>
                                                                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: theme.palette.divider, opacity: 0.3 }} />
+                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: '#ef4444' }} />
                                                                             <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Occupied</Typography>
+                                                                        </Box>
+                                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                                                                            <Box sx={{ width: 10, height: 10, borderRadius: 0.5, bgcolor: '#ec4899' }} />
+                                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem' }}>Ladies</Typography>
                                                                         </Box>
                                                                     </Box>
                                                                 </Paper>

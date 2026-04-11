@@ -13,14 +13,18 @@ import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import CloseIcon from '@mui/icons-material/Close';
 import PersonIcon from '@mui/icons-material/Person';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import { getAdminSeats, blockSeat, unblockSeat, createAdminBooking, sendWhatsAppConfirmation, getAdminBookings, revokeBooking } from '../../services/api';
+import { getAdminSeats, blockSeat, unblockSeat, createAdminBooking, sendWhatsAppConfirmation, getAdminBookings, revokeBooking, getRoomLayoutsBatch } from '../../services/api';
 import type { BookingResponse, Floor, Branch } from '../../types/booking';
+import type { RoomLayoutData } from '../../services/api';
 import { calculatePrice } from '../../utils/pricing';
+import RoomSeatMap from '../../components/RoomSeatMap';
 
 interface SeatRow {
     id: number;
     seat_no: string;
     is_blocked: boolean;
+    is_ladies: boolean;
+    room_id: string;
     floor_id: number;
     branch_id: number;
     floor_number: number;
@@ -54,6 +58,9 @@ const AdminSeats: React.FC = () => {
     // Detail Dialog state
     const [detailsDialog, setDetailsDialog] = useState(false);
 
+    // Room layouts
+    const [layouts, setLayouts] = useState<Map<string, RoomLayoutData>>(new Map());
+
     const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
 
     useEffect(() => {
@@ -69,6 +76,13 @@ const AdminSeats: React.FC = () => {
             ]);
             setSeats(seatsData);
             setBookings(bookingsData);
+
+            // Fetch room layouts
+            const roomIds = [...new Set(seatsData.map((s: SeatRow) => s.room_id).filter(Boolean))];
+            if (roomIds.length > 0) {
+                const layoutData = await getRoomLayoutsBatch(roomIds);
+                setLayouts(layoutData);
+            }
         } catch (err) {
             console.error(err);
             setSnack({ msg: 'Failed to load seats', severity: 'error' });
@@ -221,7 +235,7 @@ const AdminSeats: React.FC = () => {
         .filter(s => !filterBranch || s.branch_id === filterBranch)
         .filter(s => !filterFloor || s.floor_number === filterFloor);
 
-    const blockedCount = filtered.filter(s => s.is_blocked).length;
+    const blockedCount = filtered.filter(s => s.is_blocked || getSeatBooking(s.seat_no, s.branch_id, s.floor_number)).length;
     const rooms = [...new Set(filtered.map(s => s.room_name))];
 
     if (loading) return (
@@ -299,52 +313,98 @@ const AdminSeats: React.FC = () => {
                                 </Typography>
                             </Paper>
                         ) : (
-                            rooms.map(roomName => (
+                            rooms.map(roomName => {
+                                const roomSeats = filtered.filter(s => s.room_name === roomName);
+                                const roomId = roomSeats[0]?.room_id;
+                                const layout = roomId ? layouts.get(roomId) : undefined;
+                                const hasLayout = layout && layout.seatPositions.length > 0;
+
+                                // Build Room object for RoomSeatMap
+                                const roomObj = {
+                                    id: roomId || roomName,
+                                    name: roomName,
+                                    roomNo: roomSeats[0]?.room_no || '',
+                                    isAc: roomSeats[0]?.is_ac || false,
+                                    seats: roomSeats.map(s => {
+                                        const booking = getSeatBooking(s.seat_no, s.branch_id, s.floor_number);
+                                        return {
+                                            id: String(s.id),
+                                            seatNo: s.seat_no,
+                                            available: !s.is_blocked && !booking,
+                                            isLadies: s.is_ladies || false,
+                                            label: booking?.customerName || undefined,
+                                        };
+                                    }),
+                                };
+
+                                // Count booked/blocked
+                                const bookedCount = roomSeats.filter(s => s.is_blocked || getSeatBooking(s.seat_no, s.branch_id, s.floor_number)).length;
+
+                                return (
                                 <Box key={roomName}>
-                                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1.5, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                    <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
                                         <Box sx={{ width: 4, height: 16, bgcolor: 'primary.main', borderRadius: 1 }} />
                                         {roomName}
+                                        <Chip label={`${bookedCount}/${roomSeats.length} occupied`} size="small" variant="outlined"
+                                            color={bookedCount > 0 ? 'error' : 'success'}
+                                            sx={{ ml: 1, fontSize: '0.65rem', height: 20 }} />
                                     </Typography>
                                     <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-                                        <Box sx={{
-                                            display: 'grid',
-                                            gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
-                                            gap: 1.5,
-                                        }}>
-                                            {filtered.filter(s => s.room_name === roomName).map(seat => {
-                                                const booking = getSeatBooking(seat.seat_no, seat.branch_id, seat.floor_number);
-                                                return (
-                                                    <Box
-                                                        key={seat.id}
-                                                        onClick={() => handleSeatClick(seat)}
-                                                        sx={{
-                                                            p: 1.2, borderRadius: 2, textAlign: 'center',
-                                                            cursor: 'pointer',
-                                                            border: '2px solid',
-                                                            borderColor: (seat.is_blocked || booking) ? 'error.main' : theme.palette.divider,
-                                                            bgcolor: (seat.is_blocked || booking)
-                                                                ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)')
-                                                                : 'background.paper',
-                                                            transition: 'all 0.2s ease',
-                                                            '&:hover': {
-                                                                transform: 'scale(1.05)',
-                                                                boxShadow: theme.shadows[2],
-                                                            },
-                                                        }}
-                                                    >
-                                                        <Typography variant="caption" fontWeight={700} sx={{ display: 'block' }}>
-                                                            {seat.seat_no}
-                                                        </Typography>
-                                                        <Typography variant="caption" sx={{ fontSize: '0.6rem', color: (seat.is_blocked || booking) ? 'error.main' : 'success.main', fontWeight: (seat.is_blocked || booking) ? 700 : 400 }}>
-                                                            {booking ? (booking.status === 'pending' ? 'Pending' : 'Booked') : (seat.is_blocked ? 'Blocked' : 'Free')}
-                                                        </Typography>
-                                                    </Box>
-                                                );
-                                            })}
-                                        </Box>
+                                        {hasLayout ? (
+                                            <RoomSeatMap
+                                                room={roomObj as any}
+                                                gridCols={layout.gridCols}
+                                                gridRows={layout.gridRows}
+                                                seatPositions={layout.seatPositions}
+                                                elements={layout.elements}
+                                                onSeatClick={(seat) => {
+                                                    const seatRow = roomSeats.find(s => String(s.id) === seat.id);
+                                                    if (seatRow) handleSeatClick(seatRow);
+                                                }}
+                                            />
+                                        ) : (
+                                            <Box sx={{
+                                                display: 'grid',
+                                                gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))',
+                                                gap: 1.5,
+                                            }}>
+                                                {roomSeats.map(seat => {
+                                                    const booking = getSeatBooking(seat.seat_no, seat.branch_id, seat.floor_number);
+                                                    const isOccupied = seat.is_blocked || !!booking;
+                                                    return (
+                                                        <Box
+                                                            key={seat.id}
+                                                            onClick={() => handleSeatClick(seat)}
+                                                            sx={{
+                                                                p: 1.2, borderRadius: 2, textAlign: 'center',
+                                                                cursor: 'pointer',
+                                                                border: '2px solid',
+                                                                borderColor: isOccupied ? 'error.main' : theme.palette.divider,
+                                                                bgcolor: isOccupied
+                                                                    ? (isDark ? 'rgba(239, 68, 68, 0.1)' : 'rgba(239, 68, 68, 0.05)')
+                                                                    : 'background.paper',
+                                                                transition: 'all 0.2s ease',
+                                                                '&:hover': {
+                                                                    transform: 'scale(1.05)',
+                                                                    boxShadow: theme.shadows[2],
+                                                                },
+                                                            }}
+                                                        >
+                                                            <Typography variant="caption" fontWeight={700} sx={{ display: 'block' }}>
+                                                                {seat.seat_no}
+                                                            </Typography>
+                                                            <Typography variant="caption" sx={{ fontSize: '0.6rem', color: isOccupied ? 'error.main' : 'success.main', fontWeight: isOccupied ? 700 : 400 }}>
+                                                                {booking ? (booking.status === 'pending' ? 'Pending' : 'Booked') : (seat.is_blocked ? 'Blocked' : 'Free')}
+                                                            </Typography>
+                                                        </Box>
+                                                    );
+                                                })}
+                                            </Box>
+                                        )}
                                     </Paper>
                                 </Box>
-                            ))
+                                );
+                            })
                         )}
                     </Box>
                 )}

@@ -221,6 +221,7 @@ export const getBranches = async (): Promise<Branch[]> => {
                                 id: String(s.id),
                                 seatNo: s.seat_no,
                                 available: s.is_available,
+                                isLadies: s.is_ladies ?? false,
                             })),
                     })),
             })),
@@ -691,7 +692,7 @@ export const getAdminSeats = async (): Promise<any[]> => {
 
     const { data, error } = await supabase
         .from('seats')
-        .select('id, seat_no, is_blocked, room_id, rooms(floor_id, is_ac, name, room_no, price_daily, pricing_tiers, floors(branch_id, floor_number, branches(name)))')
+        .select('id, seat_no, is_blocked, is_ladies, room_id, rooms(floor_id, is_ac, name, room_no, price_daily, pricing_tiers, floors(branch_id, floor_number, branches(name)))')
         .order('id');
 
     if (error) throw new Error(`getAdminSeats failed: ${error.message}`);
@@ -704,6 +705,7 @@ export const getAdminSeats = async (): Promise<any[]> => {
             id: s.id as number,
             seat_no: s.seat_no as string,
             is_blocked: s.is_blocked as boolean,
+            room_id: (s.room_id ?? '') as string,
             floor_id: (room?.floor_id ?? 0) as number,
             branch_id: (floor?.branch_id ?? 0) as number,
             floor_number: (floor?.floor_number ?? 0) as number,
@@ -711,6 +713,7 @@ export const getAdminSeats = async (): Promise<any[]> => {
             is_ac: (room?.is_ac as boolean) ?? false,
             room_name: (room?.name ?? 'Main Floor') as string,
             room_no: (room?.room_no ?? '') as string,
+            is_ladies: (s.is_ladies as boolean) ?? false,
             price_daily: (room?.price_daily ?? 50) as number,
             pricing_tiers: (room?.pricing_tiers as any) ?? { price_1w: 500, price_2w: 900, price_3w: 1200, price_1m: 1500 },
         };
