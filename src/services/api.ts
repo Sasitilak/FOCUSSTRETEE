@@ -455,10 +455,21 @@ export const createAdminBooking = async (details: Partial<BookingDetails>, locat
         .eq('branch_id', location.branch).eq('floor_number', location.floor).maybeSingle();
     if (!floorRow) throw new Error(`Floor not found`);
 
-    // 2. Resolve Room
-    const { data: roomRow } = await supabase
-        .from('rooms').select('id')
-        .eq('floor_id', floorRow.id).eq('room_no', location.roomNo).maybeSingle();
+    // 2. Resolve Room — try roomId first, then room_no, then room name
+    let roomRow = null;
+    if (location.roomId) {
+        const { data } = await supabase.from('rooms').select('id').eq('id', location.roomId).maybeSingle();
+        roomRow = data;
+    }
+    if (!roomRow && location.roomNo) {
+        // Try by room_no first, then by name
+        const { data } = await supabase.from('rooms').select('id').eq('floor_id', floorRow.id).eq('room_no', location.roomNo).maybeSingle();
+        roomRow = data;
+        if (!roomRow) {
+            const { data: byName } = await supabase.from('rooms').select('id').eq('floor_id', floorRow.id).eq('name', location.roomNo).maybeSingle();
+            roomRow = byName;
+        }
+    }
     if (!roomRow) throw new Error(`Room not found`);
 
     // 3. Resolve Seat

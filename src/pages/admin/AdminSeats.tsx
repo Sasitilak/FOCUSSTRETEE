@@ -130,7 +130,8 @@ const AdminSeats: React.FC = () => {
             const location = {
                 branch: selectedSeat.branch_id,
                 floor: selectedSeat.floor_number,
-                roomNo: selectedSeat.room_no, // Use actual room number for lookup
+                roomId: selectedSeat.room_id,
+                roomNo: selectedSeat.room_name || selectedSeat.room_no,
                 seatNo: selectedSeat.seat_no,
                 branchName: selectedSeat.branch_name,
                 isAc: selectedSeat.is_ac
