@@ -130,7 +130,7 @@ const AdminApprovals: React.FC = () => {
     const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'approve' | 'reject' } | null>(null);
     // Tracks bookings acted on THIS session (cleared on page leave/refresh)
     const [sessionProcessed, setSessionProcessed] = useState<{ [id: string]: 'approved' | 'rejected' }>({});
-    const [activeTab, setActiveTab] = useState(0);
+    const [activeTab, setActiveTab] = useState<'pending' | 'expiring' | 'recent' | 'approved'>('pending');
 
     const getMapsUrl = (b: BookingResponse) =>
         branches.find(br => br.id === b.location?.branch)?.mapsUrl;
@@ -244,13 +244,13 @@ const AdminApprovals: React.FC = () => {
                     },
                 }}
             >
-                <Tab label={
+                <Tab value="pending" label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         Pending
                         {tabCounts.pending > 0 && <Chip label={tabCounts.pending} size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />}
                     </Box>
                 } />
-                <Tab label={
+                <Tab value="expiring" label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <AccessTimeIcon sx={{ fontSize: 18 }} />
                         Expiring Soon
@@ -258,14 +258,14 @@ const AdminApprovals: React.FC = () => {
                     </Box>
                 } />
                 {tabCounts.recent > 0 && (
-                    <Tab label={
+                    <Tab value="recent" label={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             Recently Processed
                             <Chip label={tabCounts.recent} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#25D366', color: '#fff' }} />
                         </Box>
                     } />
                 )}
-                <Tab label={
+                <Tab value="approved" label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         All Approved
                         {tabCounts.approved > 0 && <Chip label={tabCounts.approved} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />}
@@ -273,8 +273,8 @@ const AdminApprovals: React.FC = () => {
                 } />
             </Tabs>
 
-            {/* ── TAB 0: PENDING ── */}
-            {activeTab === 0 && (
+            {/* ── TAB: PENDING ── */}
+            {activeTab === 'pending' && (
                 <>
                     {pending.length === 0 ? (
                         <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
@@ -334,8 +334,8 @@ const AdminApprovals: React.FC = () => {
                 </>
             )}
 
-            {/* ── TAB 1: EXPIRING SOON ── */}
-            {activeTab === 1 && (
+            {/* ── TAB: EXPIRING SOON ── */}
+            {activeTab === 'expiring' && (
                 <>
                     {expiringSoon.length === 0 ? (
                         <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
@@ -414,8 +414,8 @@ const AdminApprovals: React.FC = () => {
                 </>
             )}
 
-            {/* ── TAB 2: RECENTLY PROCESSED (only visible when there are items) ── */}
-            {activeTab === 2 && tabCounts.recent > 0 && (
+            {/* ── TAB: RECENTLY PROCESSED (only visible when there are items) ── */}
+            {activeTab === 'recent' && tabCounts.recent > 0 && (
                 <>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Processed this session. Click to re-send the WhatsApp message. Resets when you leave the page.
@@ -454,7 +454,7 @@ const AdminApprovals: React.FC = () => {
             )}
 
             {/* ── TAB: ALL APPROVED ── */}
-            {activeTab === (tabCounts.recent > 0 ? 3 : 2) && (
+            {activeTab === 'approved' && (
                 <>
                     {confirmed.length === 0 ? (
                         <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>

@@ -95,7 +95,7 @@ const AdminSeats: React.FC = () => {
         // Handle both Seat and SeatRow types
         const seatRow = seats.find(s => s.seat_no === (seat.seat_no || seat.seatNo) && s.branch_id === (seat.branch_id || filterBranch) && s.floor_number === (seat.floor_number || filterFloor)) || seat;
 
-        const booking = getSeatBooking(seatRow.seat_no, seatRow.branch_id, seatRow.floor_number);
+        const booking = getSeatBooking(seatRow.seat_no, seatRow.branch_id, seatRow.floor_number, seatRow.room_name);
         setSelectedSeat(seatRow);
 
         if (seatRow.is_blocked || booking) {
@@ -176,7 +176,7 @@ const AdminSeats: React.FC = () => {
         if (!selectedSeat) return;
         setSubmitting(true);
         try {
-            const booking = getSeatBooking(selectedSeat.seat_no, selectedSeat.branch_id, selectedSeat.floor_number);
+            const booking = getSeatBooking(selectedSeat.seat_no, selectedSeat.branch_id, selectedSeat.floor_number, selectedSeat.room_name);
 
             if (booking) {
                 // If there's a booking, revoke it (this also unblocks the seat in api.ts)
@@ -197,12 +197,15 @@ const AdminSeats: React.FC = () => {
         }
     };
 
-    const getSeatBooking = (seatNo: string, branchId: number, floorNo: number) => {
+    const today = dayjs().format('YYYY-MM-DD');
+    const getSeatBooking = (seatNo: string, branchId: number, floorNo: number, roomName?: string) => {
         return bookings.find(b =>
             b.location.seatNo === seatNo &&
             b.location.branch === branchId &&
             b.location.floor === floorNo &&
-            ['confirmed', 'pending'].includes(b.status)
+            (!roomName || b.location.roomNo === roomName) &&
+            ['confirmed', 'pending'].includes(b.status) &&
+            (b.endDate ?? '') >= today
         );
     };
 
@@ -235,7 +238,7 @@ const AdminSeats: React.FC = () => {
         .filter(s => !filterBranch || s.branch_id === filterBranch)
         .filter(s => !filterFloor || s.floor_number === filterFloor);
 
-    const blockedCount = filtered.filter(s => s.is_blocked || getSeatBooking(s.seat_no, s.branch_id, s.floor_number)).length;
+    const blockedCount = filtered.filter(s => s.is_blocked || getSeatBooking(s.seat_no, s.branch_id, s.floor_number, s.room_name)).length;
     const rooms = [...new Set(filtered.map(s => s.room_name))];
 
     if (loading) return (
@@ -244,7 +247,7 @@ const AdminSeats: React.FC = () => {
         </Box>
     );
 
-    const activeBooking = selectedSeat ? getSeatBooking(selectedSeat.seat_no, selectedSeat.branch_id, selectedSeat.floor_number) : null;
+    const activeBooking = selectedSeat ? getSeatBooking(selectedSeat.seat_no, selectedSeat.branch_id, selectedSeat.floor_number, selectedSeat.room_name) : null;
 
     return (
         <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -326,7 +329,7 @@ const AdminSeats: React.FC = () => {
                                     roomNo: roomSeats[0]?.room_no || '',
                                     isAc: roomSeats[0]?.is_ac || false,
                                     seats: roomSeats.map(s => {
-                                        const booking = getSeatBooking(s.seat_no, s.branch_id, s.floor_number);
+                                        const booking = getSeatBooking(s.seat_no, s.branch_id, s.floor_number, s.room_name);
                                         return {
                                             id: String(s.id),
                                             seatNo: s.seat_no,
@@ -338,7 +341,7 @@ const AdminSeats: React.FC = () => {
                                 };
 
                                 // Count booked/blocked
-                                const bookedCount = roomSeats.filter(s => s.is_blocked || getSeatBooking(s.seat_no, s.branch_id, s.floor_number)).length;
+                                const bookedCount = roomSeats.filter(s => s.is_blocked || getSeatBooking(s.seat_no, s.branch_id, s.floor_number, s.room_name)).length;
 
                                 return (
                                 <Box key={roomName}>
@@ -369,7 +372,7 @@ const AdminSeats: React.FC = () => {
                                                 gap: 1.5,
                                             }}>
                                                 {roomSeats.map(seat => {
-                                                    const booking = getSeatBooking(seat.seat_no, seat.branch_id, seat.floor_number);
+                                                    const booking = getSeatBooking(seat.seat_no, seat.branch_id, seat.floor_number, seat.room_name);
                                                     const isOccupied = seat.is_blocked || !!booking;
                                                     return (
                                                         <Box

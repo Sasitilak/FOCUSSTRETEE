@@ -195,6 +195,15 @@ export const getBranches = async (): Promise<Branch[]> => {
     const { data: seatData, error: seatError } = await supabase.from('available_seats').select('*');
     if (seatError) throw new Error(`Failed to fetch seats: ${seatError.message}`);
 
+    // Fetch active bookings (confirmed/pending) to mark seats as occupied
+    const today = dayjs().format('YYYY-MM-DD');
+    const { data: activeBookings } = await supabase
+        .from('bookings')
+        .select('seat_id, status, end_date')
+        .in('status', ['confirmed', 'pending'])
+        .gte('end_date', today);
+    const bookedSeatIds = new Set((activeBookings || []).map(b => b.seat_id));
+
     if (!branchData || !floorData || !roomData || !seatData) return [];
 
     return branchData.map(b => ({
@@ -220,7 +229,7 @@ export const getBranches = async (): Promise<Branch[]> => {
                             .map(s => ({
                                 id: String(s.id),
                                 seatNo: s.seat_no,
-                                available: s.is_available,
+                                available: s.is_available && !bookedSeatIds.has(s.id),
                                 isLadies: s.is_ladies ?? false,
                             })),
                     })),
