@@ -156,7 +156,7 @@ export const uploadReceipt = async (file: File): Promise<string> => {
 
 
 
-export const getBranches = async (): Promise<Branch[]> => {
+export const getBranches = async (selectedDateRange?: string): Promise<Branch[]> => {
     if (!isSupabaseConfigured()) {
         await delay(400);
         // Filter out seats that have active/pending bookings for "today" or future
@@ -195,14 +195,33 @@ export const getBranches = async (): Promise<Branch[]> => {
     const { data: seatData, error: seatError } = await supabase.from('available_seats').select('*');
     if (seatError) throw new Error(`Failed to fetch seats: ${seatError.message}`);
 
-    // Fetch active bookings (confirmed/pending) to mark seats as occupied
+    // Fetch active bookings to mark seats as occupied
+    // If a date range is provided, use proper overlap detection
+    // Otherwise fall back to "any booking ending today or later"
     const today = dayjs().format('YYYY-MM-DD');
+    let rangeStart = today;
+    let rangeEnd = '2099-12-31';
+    if (selectedDateRange && selectedDateRange.includes(' to ')) {
+        const [s, e] = selectedDateRange.split(' to ');
+        rangeStart = s;
+        rangeEnd = e;
+    }
     const { data: activeBookings } = await supabase
         .from('bookings')
-        .select('seat_id, status, end_date')
-        .in('status', ['confirmed', 'pending'])
-        .gte('end_date', today);
-    const bookedSeatIds = new Set((activeBookings || []).map(b => b.seat_id));
+        .select('seat_id, status, end_date, start_date, grace_period_end')
+        .in('status', ['confirmed', 'pending', 'held'])
+        .lt('start_date', rangeEnd)
+        .gt('end_date', rangeStart);
+    // For held bookings, use grace_period_end as effective end if it extends beyond end_date
+    const bookedSeatIds = new Set(
+        (activeBookings || [])
+            .filter(b => {
+                const effectiveEnd = (b.status === 'held' && b.grace_period_end && b.grace_period_end > b.end_date)
+                    ? b.grace_period_end : b.end_date;
+                return effectiveEnd > rangeStart && b.start_date < rangeEnd;
+            })
+            .map(b => b.seat_id)
+    );
 
     if (!branchData || !floorData || !roomData || !seatData) return [];
 
@@ -367,12 +386,14 @@ export const createBooking = async (details: BookingDetails): Promise<BookingRes
     }
 
     // 4. Double-check availability for the specific dates to prevent race conditions
+    // Use strict inequality so adjacent bookings (end=May3, start=May4) don't clash
     const { data: overlapping, error: overlapError } = await supabase
         .from('bookings')
         .select('id')
         .eq('seat_id', seatRow.id)
-        .in('status', ['confirmed', 'pending'])
-        .or(`and(start_date.lte."${endDate}",end_date.gte."${startDate}")`)
+        .in('status', ['confirmed', 'pending', 'held'])
+        .lt('start_date', endDate)
+        .gt('end_date', startDate)
         .maybeSingle();
 
     if (overlapError) throw overlapError;
@@ -681,6 +702,99 @@ export const expireBooking = async (bookingId: string): Promise<BookingResponse>
     }
 
     return mapBookingRow(data);
+};
+
+// ─── Admin: Hold / Grace Period ─────────────────────────────────
+
+export const holdBooking = async (
+    bookingId: string,
+    newStartDate: string,
+    newEndDate: string,
+    gracePeriodEnd: string,
+): Promise<BookingResponse> => {
+    if (!isSupabaseConfigured()) {
+        await delay(500);
+        const b = mockBookings.find(b => b.id === bookingId);
+        if (!b) throw new Error(`Mock booking not found: ${bookingId}`);
+        return { ...b, status: 'held', startDate: newStartDate, endDate: newEndDate, gracePeriodEnd: gracePeriodEnd };
+    }
+
+    const { data, error } = await supabase
+        .from('bookings')
+        .update({
+            status: 'held',
+            start_date: newStartDate,
+            end_date: newEndDate,
+            grace_period_end: gracePeriodEnd,
+            held_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId)
+        .select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))')
+        .single();
+
+    if (error) throw error;
+    return mapBookingRow(data);
+};
+
+export const markHeldBookingPaid = async (bookingId: string): Promise<BookingResponse> => {
+    if (!isSupabaseConfigured()) {
+        await delay(500);
+        const b = mockBookings.find(b => b.id === bookingId);
+        if (!b) throw new Error(`Mock booking not found: ${bookingId}`);
+        return { ...b, status: 'confirmed' };
+    }
+
+    const { data, error } = await supabase
+        .from('bookings')
+        .update({
+            status: 'confirmed',
+            grace_period_end: null,
+            held_at: null,
+        })
+        .eq('id', bookingId)
+        .select('*, floors(floor_number, branches(name)), seats(seat_no, rooms(name, room_no))')
+        .single();
+
+    if (error) throw error;
+    return mapBookingRow(data);
+};
+
+/** Lazy auto-revoke: call this on admin page load to clean up expired holds */
+export const autoRevokeExpiredHolds = async (): Promise<number> => {
+    if (!isSupabaseConfigured()) return 0;
+
+    const now = dayjs().format('YYYY-MM-DD');
+    const { data, error } = await supabase
+        .from('bookings')
+        .update({ status: 'rejected' })
+        .eq('status', 'held')
+        .lt('grace_period_end', now)
+        .select('id');
+
+    if (error) {
+        console.error('autoRevokeExpiredHolds failed:', error);
+        return 0;
+    }
+    return data?.length ?? 0;
+};
+
+/** Lazy auto-expire: mark confirmed bookings past their end_date as expired */
+export const autoExpireBookings = async (): Promise<number> => {
+    if (!isSupabaseConfigured()) return 0;
+
+    const now = dayjs().format('YYYY-MM-DD');
+    const { data, error } = await supabase
+        .from('bookings')
+        .update({ status: 'expired' })
+        .eq('status', 'confirmed')
+        .lt('end_date', now)
+        .select('id');
+
+    if (error) {
+        console.error('autoExpireBookings failed:', error);
+        return 0;
+    }
+    return data?.length ?? 0;
 };
 
 // ─── Admin: Seat Management ─────────────────────────────────────
@@ -1561,6 +1675,8 @@ function mapBookingRow(row: Record<string, unknown>): BookingResponse {
         status: row.status as BookingResponse['status'],
         paymentScreenshotUrl: (row.payment_screenshot_url as string) ?? undefined,
         createdAt: row.created_at as string,
+        gracePeriodEnd: (row.grace_period_end as string) ?? undefined,
+        heldAt: (row.held_at as string) ?? undefined,
     };
 }
 

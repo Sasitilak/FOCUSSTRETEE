@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, Card, CardContent, Grid, Button,
     Chip, Dialog, DialogTitle, DialogContent, DialogActions,
-    LinearProgress, Alert, Snackbar, useTheme, DialogContentText, Tabs, Tab
+    LinearProgress, Alert, Snackbar, useTheme, DialogContentText, Tabs, Tab,
+    TextField, MenuItem, Select, FormControl, InputLabel
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import ImageIcon from '@mui/icons-material/Image';
 import WhatsAppIcon from '@mui/icons-material/WhatsApp';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import { getAdminBookings, approveBooking, rejectBooking, getBranches } from '../../services/api';
+import PauseCircleIcon from '@mui/icons-material/PauseCircle';
+import PaymentIcon from '@mui/icons-material/Payment';
+import { getAdminBookings, approveBooking, rejectBooking, getBranches, holdBooking, markHeldBookingPaid, autoRevokeExpiredHolds, autoExpireBookings } from '../../services/api';
 import type { BookingResponse, Branch } from '../../types/booking';
 
 // ─── WhatsApp helpers ────────────────────────────────────────────────────────
@@ -130,7 +133,16 @@ const AdminApprovals: React.FC = () => {
     const [confirmAction, setConfirmAction] = useState<{ id: string; type: 'approve' | 'reject' } | null>(null);
     // Tracks bookings acted on THIS session (cleared on page leave/refresh)
     const [sessionProcessed, setSessionProcessed] = useState<{ [id: string]: 'approved' | 'rejected' }>({});
-    const [activeTab, setActiveTab] = useState<'pending' | 'expiring' | 'recent' | 'approved'>('pending');
+    const [activeTab, setActiveTab] = useState<'pending' | 'expiring' | 'recent' | 'approved' | 'expired' | 'held'>('pending');
+
+    // Hold dialog state
+    const [holdDialog, setHoldDialog] = useState<BookingResponse | null>(null);
+    const [holdStartDate, setHoldStartDate] = useState('');
+    const [holdEndDate, setHoldEndDate] = useState('');
+    const [holdGraceDays, setHoldGraceDays] = useState(3);
+    const [holdProcessing, setHoldProcessing] = useState(false);
+    // Payment confirm dialog
+    const [paymentConfirm, setPaymentConfirm] = useState<BookingResponse | null>(null);
 
     const getMapsUrl = (b: BookingResponse) =>
         branches.find(br => br.id === b.location?.branch)?.mapsUrl;
@@ -138,6 +150,13 @@ const AdminApprovals: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
+                // Lazy: expire old confirmed bookings & revoke expired holds
+                const [expiredCount, revokedCount] = await Promise.all([
+                    autoExpireBookings(),
+                    autoRevokeExpiredHolds(),
+                ]);
+                if (expiredCount > 0) console.log(`Auto-expired ${expiredCount} booking(s)`);
+                if (revokedCount > 0) console.log(`Auto-revoked ${revokedCount} expired hold(s)`);
                 const [d, br] = await Promise.all([getAdminBookings(), getBranches()]);
                 setBookings(d);
                 setBranches(br);
@@ -153,16 +172,21 @@ const AdminApprovals: React.FC = () => {
 
     const pending = bookings.filter(b => b.status === 'pending');
     const confirmed = bookings.filter(b => b.status === 'confirmed');
+    const expired = bookings.filter(b => b.status === 'expired');
+    const held = bookings.filter(b => b.status === 'held');
     // Bookings acted on this session (for "recently processed" strip)
     const recentlyProcessed = bookings.filter(b => sessionProcessed[b.id]);
 
-    // Expiring soon: confirmed bookings with endDate within next 7 days (or already expired)
+    // Expiring soon: confirmed bookings within 7 days + expired bookings within last 3 days
     const now = new Date();
     const sevenDaysLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const expiringSoon = confirmed.filter(b => {
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+    const expiringSoon = bookings.filter(b => {
         if (!b.endDate) return false;
         const end = new Date(b.endDate);
-        return end <= sevenDaysLater;
+        if (b.status === 'confirmed') return end <= sevenDaysLater;
+        if (b.status === 'expired') return end >= threeDaysAgo;
+        return false;
     }).sort((a, b) => new Date(a.endDate!).getTime() - new Date(b.endDate!).getTime());
 
     const handleApprove = async (id: string) => {
@@ -207,6 +231,46 @@ const AdminApprovals: React.FC = () => {
         else handleReject(id);
     };
 
+    const openHoldDialog = (b: BookingResponse) => {
+        const today = new Date().toISOString().split('T')[0];
+        setHoldStartDate(today);
+        setHoldEndDate(b.endDate || today);
+        setHoldGraceDays(3);
+        setHoldDialog(b);
+    };
+
+    const handleHoldSubmit = async () => {
+        if (!holdDialog || !holdStartDate || !holdEndDate) return;
+        setHoldProcessing(true);
+        try {
+            const graceEnd = new Date(holdEndDate);
+            graceEnd.setDate(graceEnd.getDate() + holdGraceDays);
+            const gracePeriodEnd = graceEnd.toISOString().split('T')[0];
+            await holdBooking(holdDialog.id, holdStartDate, holdEndDate, gracePeriodEnd);
+            setBookings(prev => prev.map(b => b.id === holdDialog.id
+                ? { ...b, status: 'held' as const, startDate: holdStartDate, endDate: holdEndDate, gracePeriodEnd: gracePeriodEnd, slotDate: holdStartDate }
+                : b));
+            setSnack({ open: true, msg: `Booking ${holdDialog.id} put on hold. Grace period ends ${gracePeriodEnd}.`, severity: 'success' });
+            setHoldDialog(null);
+        } catch (err: any) {
+            setSnack({ open: true, msg: err.message || 'Hold failed', severity: 'error' });
+        }
+        setHoldProcessing(false);
+    };
+
+    const handlePaymentDone = async (b: BookingResponse) => {
+        setProcessing(b.id);
+        try {
+            await markHeldBookingPaid(b.id);
+            setBookings(prev => prev.map(bk => bk.id === b.id ? { ...bk, status: 'confirmed' as const, gracePeriodEnd: undefined, heldAt: undefined } : bk));
+            setSnack({ open: true, msg: `Payment confirmed! Booking ${b.id} is now active.`, severity: 'success' });
+            setPaymentConfirm(null);
+        } catch (err: any) {
+            setSnack({ open: true, msg: err.message || 'Payment confirmation failed', severity: 'error' });
+        }
+        setProcessing(null);
+    };
+
     if (loading) return <Box><LinearProgress /></Box>;
 
     const tabCounts = {
@@ -214,6 +278,8 @@ const AdminApprovals: React.FC = () => {
         expiring: expiringSoon.length,
         recent: recentlyProcessed.length,
         approved: confirmed.length,
+        expired: expired.length,
+        held: held.length,
     };
 
     return (
@@ -250,6 +316,12 @@ const AdminApprovals: React.FC = () => {
                         {tabCounts.pending > 0 && <Chip label={tabCounts.pending} size="small" color="warning" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />}
                     </Box>
                 } />
+                <Tab value="approved" label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        All Approved
+                        {tabCounts.approved > 0 && <Chip label={tabCounts.approved} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />}
+                    </Box>
+                } />
                 <Tab value="expiring" label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <AccessTimeIcon sx={{ fontSize: 18 }} />
@@ -257,6 +329,21 @@ const AdminApprovals: React.FC = () => {
                         {tabCounts.expiring > 0 && <Chip label={tabCounts.expiring} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#f59e0b', color: '#000' }} />}
                     </Box>
                 } />
+                <Tab value="expired" label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        Expired
+                        {tabCounts.expired > 0 && <Chip label={tabCounts.expired} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#94a3b8', color: '#fff' }} />}
+                    </Box>
+                } />
+                {tabCounts.held > 0 && (
+                    <Tab value="held" label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <PauseCircleIcon sx={{ fontSize: 18 }} />
+                            Held
+                            <Chip label={tabCounts.held} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: '#8b5cf6', color: '#fff' }} />
+                        </Box>
+                    } />
+                )}
                 {tabCounts.recent > 0 && (
                     <Tab value="recent" label={
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -265,12 +352,6 @@ const AdminApprovals: React.FC = () => {
                         </Box>
                     } />
                 )}
-                <Tab value="approved" label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        All Approved
-                        {tabCounts.approved > 0 && <Chip label={tabCounts.approved} size="small" sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700 }} />}
-                    </Box>
-                } />
             </Tabs>
 
             {/* ── TAB: PENDING ── */}
@@ -334,6 +415,47 @@ const AdminApprovals: React.FC = () => {
                 </>
             )}
 
+            {/* ── TAB: ALL APPROVED ── */}
+            {activeTab === 'approved' && (
+                <>
+                    {confirmed.length === 0 ? (
+                        <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
+                            <Typography variant="h6" fontWeight={600}>No approved bookings yet</Typography>
+                            <Typography variant="body2" color="text.secondary">Approved bookings will appear here</Typography>
+                        </Paper>
+                    ) : (
+                        <>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                All confirmed bookings. Use "Send Again" if the customer didn't receive the message.
+                            </Typography>
+                            <Grid container spacing={2}>
+                                {confirmed.map((b) => (
+                                    <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
+                                        <Card sx={{ border: `1px solid ${theme.palette.divider}`, opacity: 0.9 }}>
+                                            <CardContent sx={{ p: 2.5 }}>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                                    <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
+                                                    <Chip label="Confirmed" color="success" size="small" />
+                                                </Box>
+                                                <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
+                                                <BookingInfoBox b={b} theme={theme} />
+                                                <WhatsAppButton
+                                                    booking={b}
+                                                    type="approved"
+                                                    label={`Send Again to ${(b.customerName ?? 'Customer').split(' ')[0]}`}
+                                                    mapsUrl={getMapsUrl(b)}
+                                                />
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                ))}
+                            </Grid>
+                        </>
+                    )}
+                </>
+            )}
+
             {/* ── TAB: EXPIRING SOON ── */}
             {activeTab === 'expiring' && (
                 <>
@@ -387,22 +509,40 @@ const AdminApprovals: React.FC = () => {
                                                             </Box>
                                                         ))}
                                                     </Box>
-                                                    <Button
-                                                        fullWidth
-                                                        variant="contained"
-                                                        size="small"
-                                                        startIcon={<WhatsAppIcon />}
-                                                        onClick={() => openRenewalWhatsApp(b)}
-                                                        sx={{
-                                                            bgcolor: '#25D366',
-                                                            '&:hover': { bgcolor: '#1ebe5d' },
-                                                            color: '#fff',
-                                                            fontWeight: 600,
-                                                            borderRadius: 2,
-                                                        }}
-                                                    >
-                                                        Send Renewal Reminder
-                                                    </Button>
+                                                    <Box sx={{ display: 'flex', gap: 1 }}>
+                                                        <Button
+                                                            fullWidth
+                                                            variant="contained"
+                                                            size="small"
+                                                            startIcon={<WhatsAppIcon />}
+                                                            onClick={() => openRenewalWhatsApp(b)}
+                                                            sx={{
+                                                                bgcolor: '#25D366',
+                                                                '&:hover': { bgcolor: '#1ebe5d' },
+                                                                color: '#fff',
+                                                                fontWeight: 600,
+                                                                borderRadius: 2,
+                                                            }}
+                                                        >
+                                                            Remind
+                                                        </Button>
+                                                        <Button
+                                                            fullWidth
+                                                            variant="contained"
+                                                            size="small"
+                                                            startIcon={<PauseCircleIcon />}
+                                                            onClick={() => openHoldDialog(b)}
+                                                            sx={{
+                                                                bgcolor: '#8b5cf6',
+                                                                '&:hover': { bgcolor: '#7c3aed' },
+                                                                color: '#fff',
+                                                                fontWeight: 600,
+                                                                borderRadius: 2,
+                                                            }}
+                                                        >
+                                                            Hold
+                                                        </Button>
+                                                    </Box>
                                                 </CardContent>
                                             </Card>
                                         </Grid>
@@ -411,6 +551,117 @@ const AdminApprovals: React.FC = () => {
                             </Grid>
                         </>
                     )}
+                </>
+            )}
+
+            {/* ── TAB: EXPIRED ── */}
+            {activeTab === 'expired' && (
+                <>
+                    {expired.length === 0 ? (
+                        <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
+                            <Typography variant="h6" fontWeight={600}>No expired bookings</Typography>
+                            <Typography variant="body2" color="text.secondary">Expired bookings will appear here</Typography>
+                        </Paper>
+                    ) : (
+                        <>
+                            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                                Past bookings that have expired. For reference only.
+                            </Typography>
+                            <Grid container spacing={2}>
+                                {expired.map((b) => (
+                                    <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
+                                        <Card sx={{ border: `1px solid ${theme.palette.divider}`, borderRadius: 3, opacity: 0.85 }}>
+                                            <CardContent sx={{ p: 2.5 }}>
+                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                                    <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
+                                                    <Chip label="Expired" size="small" sx={{ bgcolor: '#94a3b8', color: '#fff', fontWeight: 700 }} />
+                                                </Box>
+                                                <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
+                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
+                                                <Box sx={{ my: 2, p: 2, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+                                                    {[
+                                                        ['Location', buildLocationText(b)],
+                                                        ['Seat', b.location?.seatNo ? `Seat ${b.location.seatNo}` : '-'],
+                                                        ['Was booked', `${b.slotDate || '-'} to ${b.endDate || '-'}`],
+                                                        ['Amount', `₹${b.amount}`],
+                                                    ].map(([k, v]) => (
+                                                        <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                                            <Typography variant="caption" color="text.secondary">{k}</Typography>
+                                                            <Typography variant="body2" fontWeight={500}>{v}</Typography>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                            </CardContent>
+                                        </Card>
+                                    </Grid>
+                                ))}
+                            </Grid>
+                        </>
+                    )}
+                </>
+            )}
+
+            {/* ── TAB: HELD ── */}
+            {activeTab === 'held' && tabCounts.held > 0 && (
+                <>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Bookings on hold awaiting payment. Click "Payment Done" when cash/payment is received.
+                    </Typography>
+                    <Grid container spacing={2}>
+                        {held.map((b) => {
+                            const graceEnd = b.gracePeriodEnd ? new Date(b.gracePeriodEnd) : null;
+                            const graceDaysLeft = graceEnd ? Math.ceil((graceEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+                            return (
+                                <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
+                                    <Card sx={{ border: `2px solid #8b5cf6`, borderRadius: 3 }}>
+                                        <CardContent sx={{ p: 2.5 }}>
+                                            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+                                                <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
+                                                <Chip label="On Hold" size="small" sx={{ bgcolor: '#8b5cf6', color: '#fff', fontWeight: 700 }} />
+                                            </Box>
+                                            <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
+                                            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
+                                            <Box sx={{ my: 2, p: 2, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+                                                {[
+                                                    ['Location', buildLocationText(b)],
+                                                    ['Seat', b.location?.seatNo ? `Seat ${b.location.seatNo}` : '-'],
+                                                    ['Booking Period', `${b.startDate || b.slotDate || '-'} to ${b.endDate || '-'}`],
+                                                    ['Amount', `₹${b.amount}`],
+                                                    ['Grace Period Ends', graceEnd ? graceEnd.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'],
+                                                    ['Grace Left', graceDaysLeft > 0 ? `${graceDaysLeft} day${graceDaysLeft === 1 ? '' : 's'}` : 'Expiring soon'],
+                                                ].map(([k, v]) => (
+                                                    <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                                        <Typography variant="caption" color="text.secondary">{k}</Typography>
+                                                        <Typography variant="body2" fontWeight={500}>{v}</Typography>
+                                                    </Box>
+                                                ))}
+                                            </Box>
+                                            {graceDaysLeft <= 1 && (
+                                                <Alert severity="warning" sx={{ mb: 1.5, py: 0, fontSize: '0.75rem' }}>
+                                                    Grace period expiring soon! Mark payment or it will auto-revoke.
+                                                </Alert>
+                                            )}
+                                            <Button
+                                                fullWidth variant="contained" color="success" size="small"
+                                                startIcon={<PaymentIcon />}
+                                                onClick={() => setPaymentConfirm(b)}
+                                                disabled={processing === b.id}
+                                                sx={{ fontWeight: 600, borderRadius: 2, mb: 1 }}
+                                            >
+                                                Payment Done (Cash)
+                                            </Button>
+                                            <WhatsAppButton
+                                                booking={b}
+                                                type="approved"
+                                                label={`Message ${(b.customerName ?? 'Customer').split(' ')[0]}`}
+                                                mapsUrl={getMapsUrl(b)}
+                                            />
+                                        </CardContent>
+                                    </Card>
+                                </Grid>
+                            );
+                        })}
+                    </Grid>
                 </>
             )}
 
@@ -453,46 +704,102 @@ const AdminApprovals: React.FC = () => {
                 </>
             )}
 
-            {/* ── TAB: ALL APPROVED ── */}
-            {activeTab === 'approved' && (
-                <>
-                    {confirmed.length === 0 ? (
-                        <Paper elevation={0} sx={{ p: 6, textAlign: 'center', border: `1px solid ${theme.palette.divider}` }}>
-                            <Typography variant="h6" fontWeight={600}>No approved bookings yet</Typography>
-                            <Typography variant="body2" color="text.secondary">Approved bookings will appear here</Typography>
-                        </Paper>
-                    ) : (
-                        <>
+            {/* ── Hold Dialog ── */}
+            <Dialog open={!!holdDialog} onClose={() => setHoldDialog(null)} maxWidth="sm" fullWidth
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
+                <DialogTitle sx={{ fontWeight: 700 }}>Hold Booking</DialogTitle>
+                <DialogContent>
+                    {holdDialog && (
+                        <Box>
                             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                                All confirmed bookings. Use "Send Again" if the customer didn't receive the message.
+                                Hold this booking for <strong>{holdDialog.customerName}</strong> ({holdDialog.customerPhone}).
+                                The seat will be reserved during the booking period + grace period.
                             </Typography>
-                            <Grid container spacing={2}>
-                                {confirmed.map((b) => (
-                                    <Grid size={{ xs: 12, md: 6, lg: 4 }} key={b.id}>
-                                        <Card sx={{ border: `1px solid ${theme.palette.divider}`, opacity: 0.9 }}>
-                                            <CardContent sx={{ p: 2.5 }}>
-                                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
-                                                    <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', fontWeight: 600 }}>{b.id}</Typography>
-                                                    <Chip label="Confirmed" color="success" size="small" />
-                                                </Box>
-                                                <Typography variant="subtitle1" fontWeight={600}>{b.customerName}</Typography>
-                                                <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>{b.customerPhone}</Typography>
-                                                <BookingInfoBox b={b} theme={theme} />
-                                                <WhatsAppButton
-                                                    booking={b}
-                                                    type="approved"
-                                                    label={`Send Again to ${(b.customerName ?? 'Customer').split(' ')[0]}`}
-                                                    mapsUrl={getMapsUrl(b)}
-                                                />
-                                            </CardContent>
-                                        </Card>
-                                    </Grid>
+                            <Box sx={{ my: 2, p: 2, borderRadius: 2, bgcolor: theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' }}>
+                                {[
+                                    ['Location', buildLocationText(holdDialog)],
+                                    ['Seat', holdDialog.location?.seatNo ? `Seat ${holdDialog.location.seatNo}` : '-'],
+                                    ['Previous Period', `${holdDialog.slotDate || '-'} to ${holdDialog.endDate || '-'}`],
+                                    ['Amount', `₹${holdDialog.amount}`],
+                                ].map(([k, v]) => (
+                                    <Box key={k} sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                                        <Typography variant="caption" color="text.secondary">{k}</Typography>
+                                        <Typography variant="body2" fontWeight={500}>{v}</Typography>
+                                    </Box>
                                 ))}
-                            </Grid>
-                        </>
+                            </Box>
+                            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1.5 }}>New Booking Period</Typography>
+                            <Box sx={{ display: 'flex', gap: 2, mb: 2.5 }}>
+                                <TextField
+                                    label="Start Date" type="date" size="small" fullWidth
+                                    value={holdStartDate} onChange={e => setHoldStartDate(e.target.value)}
+                                    InputLabelProps={{ shrink: true }}
+                                />
+                                <TextField
+                                    label="End Date" type="date" size="small" fullWidth
+                                    value={holdEndDate} onChange={e => setHoldEndDate(e.target.value)}
+                                    InputLabelProps={{ shrink: true }}
+                                />
+                            </Box>
+                            <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>Grace Period</Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+                                Auto-revokes if payment is not confirmed within this period after the booking end date.
+                            </Typography>
+                            <FormControl fullWidth size="small">
+                                <InputLabel>Grace Period</InputLabel>
+                                <Select value={holdGraceDays} label="Grace Period" onChange={e => setHoldGraceDays(Number(e.target.value))}>
+                                    {[1, 2, 3, 5, 7, 10, 14].map(d => (
+                                        <MenuItem key={d} value={d}>{d} day{d > 1 ? 's' : ''}</MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                            {holdEndDate && holdGraceDays > 0 && (
+                                <Alert severity="info" sx={{ mt: 2, py: 0.5 }}>
+                                    Seat will be occupied from <strong>{holdStartDate}</strong> until grace ends on <strong>
+                                    {(() => { const d = new Date(holdEndDate); d.setDate(d.getDate() + holdGraceDays); return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }); })()}
+                                    </strong>. If payment isn't confirmed by then, booking auto-revokes.
+                                </Alert>
+                            )}
+                        </Box>
                     )}
-                </>
-            )}
+                </DialogContent>
+                <DialogActions sx={{ p: 2, gap: 1 }}>
+                    <Button onClick={() => setHoldDialog(null)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+                    <Button
+                        onClick={handleHoldSubmit}
+                        variant="contained"
+                        disabled={holdProcessing || !holdStartDate || !holdEndDate}
+                        sx={{ bgcolor: '#8b5cf6', '&:hover': { bgcolor: '#7c3aed' }, borderRadius: 2 }}
+                        startIcon={<PauseCircleIcon />}
+                    >
+                        {holdProcessing ? 'Holding...' : 'Confirm Hold'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* ── Payment Confirm Dialog ── */}
+            <Dialog open={!!paymentConfirm} onClose={() => setPaymentConfirm(null)}
+                PaperProps={{ sx: { borderRadius: 3, p: 1 } }}>
+                <DialogTitle sx={{ fontWeight: 700 }}>Confirm Payment Received?</DialogTitle>
+                <DialogContent>
+                    <DialogContentText>
+                        Mark booking <strong>{paymentConfirm?.id}</strong> for <strong>{paymentConfirm?.customerName}</strong> as paid?
+                        This will change the booking status from "Held" to "Confirmed" (active).
+                    </DialogContentText>
+                </DialogContent>
+                <DialogActions sx={{ p: 2, gap: 1 }}>
+                    <Button onClick={() => setPaymentConfirm(null)} sx={{ color: 'text.secondary' }}>Cancel</Button>
+                    <Button
+                        onClick={() => paymentConfirm && handlePaymentDone(paymentConfirm)}
+                        variant="contained" color="success"
+                        disabled={!!processing}
+                        sx={{ borderRadius: 2 }}
+                        startIcon={<PaymentIcon />}
+                    >
+                        Yes — Payment Done
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {/* ── Screenshot Dialog ── */}
             <Dialog open={!!viewScreenshot} onClose={() => setViewScreenshot(null)} maxWidth="sm" fullWidth>

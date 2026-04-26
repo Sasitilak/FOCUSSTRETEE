@@ -361,6 +361,7 @@ const AdminSeats: React.FC = () => {
                                                 gridRows={layout.gridRows}
                                                 seatPositions={layout.seatPositions}
                                                 elements={layout.elements}
+                                                forceClickable
                                                 onSeatClick={(seat) => {
                                                     const seatRow = roomSeats.find(s => String(s.id) === seat.id);
                                                     if (seatRow) handleSeatClick(seatRow);

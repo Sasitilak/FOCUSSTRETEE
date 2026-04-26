@@ -107,9 +107,11 @@ export interface BookingResponse {
     customerPhone?: string;
     customerEmail?: string;
     amount: number;
-    status: 'pending' | 'confirmed' | 'cancelled' | 'rejected' | 'revoked' | 'expired';
+    status: 'pending' | 'confirmed' | 'cancelled' | 'rejected' | 'revoked' | 'expired' | 'held';
     paymentScreenshotUrl?: string;
     createdAt: string;
+    gracePeriodEnd?: string;
+    heldAt?: string;
 }
 
 export interface PaymentResponse {

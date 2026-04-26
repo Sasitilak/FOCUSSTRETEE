@@ -9,7 +9,7 @@ import { getDashboardStats, getAdminBookings } from '../../services/api';
 import type { DashboardStats, BookingResponse } from '../../types/booking';
 
 const statusColor: Record<string, 'warning' | 'success' | 'error' | 'default' | 'info'> = {
-    pending: 'warning', confirmed: 'success', rejected: 'error', cancelled: 'default', revoked: 'error', expired: 'info',
+    pending: 'warning', confirmed: 'success', rejected: 'error', cancelled: 'default', revoked: 'error', expired: 'info', held: 'info',
 };
 
 const AdminDashboard: React.FC = () => {

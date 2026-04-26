@@ -13,6 +13,8 @@ interface RoomSeatMapProps {
     elements: RoomElement[];
     selectedSeatId?: string;
     onSeatClick: (seat: Seat) => void;
+    /** When true, all seats are clickable regardless of availability (for admin views) */
+    forceClickable?: boolean;
 }
 
 // Compact study chair SVG — clean, readable at small sizes
@@ -44,7 +46,7 @@ const getSeatStyle = (seat: Seat, isSelected: boolean) => {
 };
 
 const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
-    room, gridCols, gridRows, seatPositions, elements, selectedSeatId, onSeatClick,
+    room, gridCols, gridRows, seatPositions, elements, selectedSeatId, onSeatClick, forceClickable,
 }) => {
     const seatGrid = new Map<string, Seat>();
     seatPositions.forEach(sp => {
@@ -148,7 +150,7 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
             }}>
                 {room.seats.map((seat, i) => {
                     const isSelected = selectedSeatId === seat.id;
-                    const isClickable = seat.available || isSelected;
+                    const isClickable = forceClickable || seat.available || isSelected;
                     return (
                         <MotionBox
                             key={seat.id}
@@ -197,7 +199,7 @@ const RoomSeatMap: React.FC<RoomSeatMapProps> = ({
                     Array.from({ length: gridCols }).map((_, col) => {
                         const seat = seatGrid.get(`${row}-${col}`);
                         const isSelected = !!(seat && selectedSeatId === seat.id);
-                        const isClickable = !!(seat && (seat.available || isSelected));
+                        const isClickable = !!(seat && (forceClickable || seat.available || isSelected));
                         const borders = getCellBorders(row, col);
                         const cornerRadius = getCornerRadius(row, col);
 

@@ -23,7 +23,7 @@ const LocationSelectionPage: React.FC = () => {
     const navigate = useNavigate();
     const theme = useTheme();
     const isDark = theme.palette.mode === 'dark';
-    const { selectedSlot, setSelectedSlot, selectedLocation, setSelectedLocation } = useBooking();
+    const { selectedSlot, setSelectedSlot, selectedLocation, setSelectedLocation, selectedDate } = useBooking();
 
     const [branches, setBranches] = useState<Branch[]>([]);
     const [loading, setLoading] = useState(true);
@@ -37,7 +37,7 @@ const LocationSelectionPage: React.FC = () => {
         if (!selectedSlot) { navigate('/slots'); return; }
         const fetchBranches = async () => {
             try {
-                const d = await getBranches();
+                const d = await getBranches(selectedDate || undefined);
                 setBranches(d);
             } catch (err) {
                 console.error('Failed to fetch branches:', err);
