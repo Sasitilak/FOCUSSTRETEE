@@ -25,19 +25,23 @@ const buildWhatsAppLink = (phone: string, message: string): string => {
 const buildLocationText = (b: BookingResponse): string => {
     const branch = b.location?.branchName ?? `Branch ${b.location?.branch ?? ''}`;
     const floor = b.location?.floor ? `Floor ${b.location.floor}` : '';
-    return [branch, floor].filter(Boolean).join(', ');
+    const seat = b.location?.seatNo ? `Seat ${b.location.seatNo}` : '';
+    return [branch, floor, seat].filter(Boolean).join(', ');
 };
 
 const buildConfirmationMessage = (b: BookingResponse, mapsUrl?: string): string => {
     const location = buildLocationText(b);
     const mapsLine = mapsUrl ? `\nLocation: ${mapsUrl}` : '';
+    const periodLine = b.startDate && b.endDate
+        ? `\nPeriod: ${new Date(b.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} to ${new Date(b.endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`
+        : '';
     return `Hello ${b.customerName ?? 'Customer'},
 
 Thank you for booking with AcumenHive.
 
 Your booking for ${location} has been confirmed.${mapsLine}
 
-Booking ID: ${b.id}
+Booking ID: ${b.id}${periodLine}
 Amount Paid: ₹${b.amount}
 
 We look forward to serving you.`;
